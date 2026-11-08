@@ -1,0 +1,6 @@
+pydantic>=2.7,<3
+pdfplumber
+spacy
+pint
+pytest
+pyyaml
