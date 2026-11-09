@@ -37,32 +37,32 @@ Member B owns the following processing pipeline:
 ### Main processing flow
 
 ```text
-              Research Document
-                      |
-                      v
-              Document Ingestion
-                 /         \
-                v           v
-           PDF Parser    CSV Parser
-                \           /
-                 v         v
-                Evidence Chunks
-                       |
-             +---------+---------+
-             |                   |
-             v                   v
-       Claim Extraction    Evidence Slot Extraction
-             |                   |
-             v                   v
-       Numeric Slots       Evidence Slots
-             |                   |
-             +---------+---------+
-                       |
-                       v
-              Numeric Verification
-                       |
-                       v
-             Verification Results
+                 Research Document
+                        |
+                        v
+                 Document Ingestion
+                    /       \
+                   v         v
+              PDF Parser  CSV Parser
+                   \         /
+                    v       v
+                  Evidence Chunks
+                        |
+             +----------+----------+
+             |                     |
+             v                     v
+       Claim Extraction     Evidence Slot Extraction
+             |                     |
+             v                     v
+        Numeric Slots          Evidence Slots
+             |                     |
+             +----------+----------+
+                        |
+                        v
+               Numeric Verification
+                        |
+                        v
+                Verification Results
 ```
 
 ---
@@ -110,11 +110,11 @@ evidencegraph/
 │   │   ├── test_claims.py
 │   │   ├── test_evidence_slots.py
 │   │   ├── test_numeric.py
+│   │   ├── test_numeric_integration.py
 │   │   └── test_pack.py
 │   │
 │   └── regression/
-│       ├── test_slots_golden.py
-│       └── test_numeric_golden.py
+│       └── test_slots_golden.py
 │
 ├── config/
 │   └── numeric.yaml
@@ -126,7 +126,7 @@ evidencegraph/
 └── pytest.ini
 ```
 
-Some files and tests are still planned and will be added as implementation progresses.
+The structure above describes the Member B files and tests. The exact contents of shared configuration and test fixture folders may evolve as the team integrates the modules.
 
 ---
 
@@ -134,7 +134,7 @@ Some files and tests are still planned and will be added as implementation progr
 
 | Technology | Purpose |
 |---|---|
-| Python 3.10.11 | Primary implementation language |
+| Python 3.13 | Primary implementation language |
 | Pydantic v2 | Data models and validation |
 | pdfplumber | PDF text and table extraction |
 | spaCy | Sentence segmentation and NLP preprocessing |
@@ -293,20 +293,23 @@ The current extractor uses a rule-based approach identified by:
 
 **File:** `worker/extraction/evidence_slots.py`
 
-Planned module for extracting numerical information from evidence chunks.
+Extracts numerical information from evidence chunks so that it can be compared with the numerical information found in claims.
 
-It will identify the numerical values and associated context needed to compare evidence against extracted claims.
+The module identifies numerical values and their associated context, including metrics, entities, periods, units and other available table or text context.
+
+For table-like evidence, the current implementation uses the first column as the entity label and uses available headers or captions as metric, unit and period context. Tables with ambiguous or insufficient context may require review rather than being treated as confidently matched evidence.
 
 ### 5.9 Numeric Verification
 
 **File:** `worker/verification/numeric.py`
 
-Planned module for comparing numerical claim slots with evidence slots.
+Compares numerical claim slots with evidence slots.
 
-The verification process will consider:
+The verification process considers:
 
 - Numerical value
 - Metric
+- Entity
 - Unit
 - Scale
 - Period
@@ -314,7 +317,9 @@ The verification process will consider:
 - Denominator
 - Configured tolerance
 
-The output will use the `NumericCheck` schema.
+The implementation uses `Decimal` for numerical comparisons and Pint for unit handling. It also accounts for written precision and approximate expressions when determining tolerance.
+
+The output uses the `NumericCheck` schema.
 
 Possible verification outcomes:
 
@@ -323,13 +328,24 @@ Possible verification outcomes:
 - `INCOMPARABLE`
 - `NOT_APPLICABLE`
 
+A result is not treated as a match merely because two numbers are equal: the relevant metric and contextual fields must also be sufficiently aligned.
+
 ### 5.10 Scientific Research Pack
 
 **Directory:** `domain_packs/scientific_research/`
 
 Provides domain-specific configuration and processing rules for scientific research documents.
 
-It will integrate the numerical lexicon, metric definitions, unit handling and domain-specific validation settings.
+It includes:
+
+- Metric aliases and lexicon definitions
+- Domain-specific metric handling
+- Growth percentage calculations
+- Percentage-point difference checks
+- Scale-related hints
+- Validation results and pack-level validation logic
+
+This pack provides the scientific-research-specific layer used alongside the general ingestion, extraction and verification modules.
 
 ---
 
@@ -337,7 +353,7 @@ It will integrate the numerical lexicon, metric definitions, unit handling and d
 
 ### Prerequisites
 
-- Python 3.10.11
+- Python 3.13
 - pip
 - Git
 - Visual Studio Code (recommended)
@@ -352,7 +368,7 @@ cd evidencegraph
 ### Step 2: Create a virtual environment
 
 ```cmd
-python -m venv .venv
+py -3.13 -m venv .venv
 ```
 
 ### Step 3: Activate the virtual environment
@@ -382,19 +398,19 @@ The claim extraction module also supports a blank English spaCy pipeline with se
 Run the complete test suite:
 
 ```cmd
-pytest -v
+py -3.13 -m pytest -v
 ```
 
 Run only unit tests:
 
 ```cmd
-pytest tests\unit -v
+py -3.13 -m pytest tests\unit -v
 ```
 
 Run regression tests:
 
 ```cmd
-pytest tests\regression -v
+py -3.13 -m pytest tests\regression -v
 ```
 
 ---
@@ -414,7 +430,9 @@ Examples:
 - PDF paragraph and table extraction
 - Claim extraction
 - Numerical slot extraction
+- Evidence slot extraction
 - Numeric verification
+- Scientific Research Pack validation
 
 ### Regression Testing
 
@@ -434,30 +452,32 @@ Examples:
 
 ### Integration Testing
 
-Will validate the complete processing flow from document ingestion to claim extraction, evidence extraction and numerical verification.
+Integration tests exercise connected parts of the Member B pipeline, including numerical slot extraction and verification. Full validation of the complete pipeline using real research PDFs and CSV files remains a separate validation task.
 
 ---
 
 ## 8. Current Implementation Status
 
-<text>Progress as of 8 November 2026.</text>
+Progress :
 
 | Stage | Component | Status |
 |---|---|---|
 | 0 | Environment and project setup | Completed |
-| 1 | Pydantic schemas | Implemented; dedicated schema tests not yet confirmed |
-| 2 | Deterministic anchors | Completed and tested |
-| 3 | CSV ingestion | Completed; 7 tests passed |
-| 4 | PDF ingestion | Implemented; 6 mocked/unit tests passed |
-| 5A | Scientific research lexicon | Completed; 6 tests passed |
-| 5B | Numeric slot extraction | Implemented; regression tests passed |
-| 6 | Claim extraction | Implementation and tests supplied; execution pending |
-| 7 | Evidence slot extraction | Pending |
-| 8 | Numeric verification | Pending |
-| 9 | Scientific Research Pack | Pending |
-| 10 | Integration and end-to-end testing | Pending |
+| 1 | Pydantic schemas | Implemented and used across the Member B modules |
+| 2 | Deterministic anchors | Implemented and tested |
+| 3 | CSV ingestion | Implemented; unit tests included in the passing test suite |
+| 4 | PDF ingestion | Implemented; mocked/unit tests passed; real research-PDF validation remains |
+| 5A | Scientific research lexicon | Implemented and tested |
+| 5B | Numeric slot extraction | Implemented and tested |
+| 6 | Claim extraction | Implemented and tested |
+| 7 | Evidence slot extraction | Implemented and tested |
+| 8 | Numeric verification | Implemented and tested |
+| 9 | Scientific Research Pack | Implemented and tested |
+| 10 | Integration and end-to-end testing | Partially covered by module-level integration tests; full real-document end-to-end validation remains |
 
-**Important testing note:** The PDF parser has passed mocked unit tests, but validation against a collection of real research PDFs is still required.
+**Testing note:** The latest reported complete test-suite run passed **123 tests**. This confirms that the current automated tests pass in the tested environment. It does not, by itself, establish extraction accuracy on real research documents or replace manual validation against representative PDFs and CSV files.
+
+The PDF parser has passed mocked/unit tests. Validation against a collection of real research PDFs is still required.
 
 ---
 
@@ -516,16 +536,17 @@ Database persistence, API endpoints, job orchestration and deployment are handle
 
 ## 11. Future Work
 
-The remaining implementation work includes:
+The core Member B modules have been implemented and the current automated test suite passes. The remaining work is primarily validation, hardening and integration:
 
-1. Complete claim extraction testing and refine extraction behaviour where required.
-2. Implement evidence slot extraction.
-3. Implement numerical claim-to-evidence verification.
-4. Complete the Scientific Research Pack.
-5. Validate PDF extraction on real scientific research documents.
-6. Add integration tests for the complete Member B pipeline.
-7. Coordinate shared schema and API integration with Member A.
-8. Evaluate extraction quality using representative research documents and a manually annotated test set.
+1. Validate PDF extraction on a representative collection of real scientific research documents.
+2. Test the CSV ingestion flow using representative real CSV files.
+3. Inspect extracted claims and evidence slots against their original source content.
+4. Build and evaluate manually annotated examples for claim extraction, numeric slots and numeric verification.
+5. Measure extraction and slot accuracy on the annotated examples and document limitations.
+6. Add or complete end-to-end tests for the full Member B pipeline using real documents, including a controlled numerical disagreement case.
+7. Check deterministic outputs across repeated runs.
+8. Test robustness cases such as encrypted or empty PDFs, large tables, CSV BOM and ragged rows.
+9. Coordinate shared schema, function-signature and output integration with Member A and the other team members.
 
 ---
 
@@ -536,7 +557,3 @@ At completion, the Member B pipeline will convert research documents into tracea
 It will support the extraction of numerical information from research text and evidence tables, preserve source references, and provide a systematic mechanism for checking whether numerical claims are supported by the available evidence.
 
 This module forms the document-processing, claim-extraction and numerical-verification foundation of EvidenceGraph.
-
----
-
-**Module
