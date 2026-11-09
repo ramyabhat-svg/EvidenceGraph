@@ -75,7 +75,7 @@ The following structure represents the Member B implementation and its associate
 evidencegraph/
 │
 ├── domain/
-│   └── schemas.py
+│   └── schemas.py #shared schema
 │
 ├── worker/
 │   │
