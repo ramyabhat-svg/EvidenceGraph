@@ -1,0 +1,43 @@
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = [
+    "domain/schemas.py",
+    "domain_packs/**",
+    "worker/ingestion/**",
+    "worker/extraction/**",
+    "worker/verification/numeric.py",
+    "tests/regression/**",
+    "tests/unit/test_*.py",
+    "scripts/pdf_spike.py",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+
+[tool.mypy]
+python_version = "3.10"
+follow_imports = "silent"
+show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = [
+    "eg_common.*",
+    "persistence.*",
+    "apps.*",
+    "worker.orchestration.*",
+    "worker.reporting.*",
+    "worker.jobqueue",
+    "worker.main",
+]
+strict = true
+
+[[tool.mypy.overrides]]
+module = [
+    "domain.*",
+    "domain_packs.*",
+    "worker.ingestion.*",
+    "worker.extraction.*",
+    "worker.verification.*",
+]
+ignore_errors = true
