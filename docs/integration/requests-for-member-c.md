@@ -9,5 +9,12 @@ please confirm the following public contracts in `worker/orchestration/interface
 - Decision-policy inputs, verdict output, abstention reason, policy version, and configurable
   thresholds.
 - Which component results must be persisted before policy evaluation and how stubs are labelled.
+- **Dense retrieval decision (approved):** use
+  `sentence-transformers/all-MiniLM-L6-v2`, Apache 2.0, at revision
+  `1110a243fdf4706b3f48f1d95db1a4f5529b4d41`, with local CPU inference, 384-dimensional vectors,
+  PostgreSQL pgvector, and cosine distance. A's orchestration adapter implements the persisted
+  dense retrieval path without changing Member C's ownership area.
 
-No files in Member C's ownership area were changed.
+The NLI, policy adapter, and separate local reranker provider are implemented in A-owned
+orchestration. Threshold calibration remains a Person D input. No files in Member C's ownership
+area were changed.

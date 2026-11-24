@@ -4,7 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -33,6 +33,17 @@ class Settings(BaseSettings):
     job_backoff_base_seconds: int = 30
     job_lock_timeout_seconds: int = 900
     worker_poll_seconds: int = 2
+    retrieval_top_k: int = Field(default=20, ge=1)
+    retrieval_bm25_k1: float = Field(default=1.5, gt=0)
+    retrieval_bm25_b: float = Field(default=0.75, ge=0, le=1)
+    retrieval_rrf_k: int = Field(default=60, ge=1)
+    embedding_batch_size: int = Field(default=32, ge=1)
+    nli_batch_size: int = Field(default=16, ge=1)
+    reranker_batch_size: int = Field(default=16, ge=1)
+    policy_tau_ext: float | None = Field(default=None, ge=0, le=1)
+    policy_tau_ret: float | None = Field(default=None, ge=0, le=1)
+    policy_tau_e: float | None = Field(default=None, ge=0, le=1)
+    policy_tau_c: float | None = Field(default=None, ge=0, le=1)
 
     @field_validator("database_url")
     @classmethod

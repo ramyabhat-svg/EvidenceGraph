@@ -8,14 +8,16 @@ from uuid import uuid4
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
+from sqlalchemy.orm import Session, sessionmaker
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import RequestResponseEndpoint
 
+from apps.api.documents import create_document_router
 from eg_common import __version__
 from eg_common.errors import AppError
 from eg_common.logging import log_event
 from eg_common.settings import Settings, get_settings
-from persistence.session import database_is_available
+from persistence.session import database_is_available, get_session_factory
 
 _logger = logging.getLogger(__name__)
 _REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
@@ -37,10 +39,12 @@ def _health_response(database_check: Callable[[], bool]) -> JSONResponse:
 def create_app(
     settings: Settings | None = None,
     database_check: Callable[[], bool] | None = None,
+    session_factory: sessionmaker[Session] | None = None,
 ) -> FastAPI:
     """Create the API application with configurable settings and health checking."""
     resolved_settings = settings or get_settings()
     resolved_database_check = database_check or database_is_available
+    resolved_session_factory = session_factory or get_session_factory()
     app = FastAPI(
         title="EvidenceGraph API",
         version=__version__,
@@ -128,6 +132,10 @@ def create_app(
         methods=["GET"],
         include_in_schema=False,
         name="health_alias",
+    )
+    app.include_router(
+        create_document_router(resolved_settings, resolved_session_factory),
+        prefix="/api/v1",
     )
     return app
 

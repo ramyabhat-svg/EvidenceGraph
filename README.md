@@ -1,147 +1,147 @@
-# EvidenceGraph — Member B: Document Ingestion, Claim Extraction & Numeric Verification
+# EvidenceGraph — Integrated Research Evidence Verification Backend
 
 ## 1. Overview
 
-EvidenceGraph is an evidence-grounded research analysis system designed to extract claims from research documents, connect them to supporting evidence, and verify numerical information.
+EvidenceGraph is an integrated backend for checking claims in research documents against supplied
+document evidence. It ingests a PDF and an optional companion CSV, anchors extracted passages and
+table data to source locations, extracts claims and numeric slots, retrieves related evidence,
+performs numeric and semantic checks, and stores verdicts with their evidence provenance.
 
-This repository contains **Member B's implementation**, which focuses on the document-processing and evidence-analysis pipeline.
-
-The module is responsible for:
-
-- Extracting structured content from PDF and CSV documents.
-- Generating deterministic source anchors for traceability.
-- Splitting research text into meaningful claims.
-- Extracting numerical values and their associated metrics.
-- Identifying evidence slots from supporting content.
-- Verifying numerical claims against extracted evidence.
-- Providing a Scientific Research Pack for domain-specific processing.
-
-The objective is to ensure that extracted claims retain their connection to the original source, allowing downstream components to inspect and verify the evidence behind them.
+The FastAPI service accepts documents and reports processing status and persisted analysis results.
+A separate background worker performs parsing and model inference. Retrieval and inference run
+locally on CPU. Verdict generation returns **Needs Review** when required policy thresholds have
+not been calibrated and configured.
 
 ---
 
-## 2. Member B Responsibilities
+## 2. Architecture and Project Responsibilities
 
-Member B owns the following processing pipeline:
-
-| Component | Responsibility |
-|---|---|
-| Document ingestion | Read and process PDF and CSV files |
-| Source anchoring | Generate stable identifiers for paragraphs, table rows, cells and CSV rows |
-| Claim extraction | Identify quantitative and comparative claims from research text |
-| Numeric slot extraction | Extract metrics, values, units, entities and other numerical context |
-| Evidence slot extraction | Extract corresponding numerical information from evidence chunks |
-| Numeric verification | Compare claim values against supporting evidence |
-| Scientific Research Pack | Provide domain-specific metric aliases, rules and configuration |
-
-### Main processing flow
+### Integrated processing flow
 
 ```text
-                 Research Document
-                        |
-                        v
-                 Document Ingestion
-                    /       \
-                   v         v
-              PDF Parser  CSV Parser
-                   \         /
-                    v       v
-                  Evidence Chunks
-                        |
-             +----------+----------+
-             |                     |
-             v                     v
-       Claim Extraction     Evidence Slot Extraction
-             |                     |
-             v                     v
-        Numeric Slots          Evidence Slots
-             |                     |
-             +----------+----------+
-                        |
-                        v
-               Numeric Verification
-                        |
-                        v
-                Verification Results
+PDF + optional companion CSV
+            |
+            v
+FastAPI intake -> durable file storage -> queued document in PostgreSQL
+                                            |
+                                            v
+                                   Background worker
+                                            |
+                  +-------------------------+----------------------+
+                  v                         v                      v
+            PDF/CSV parsing           Source anchors        Claim extraction
+                  |                                                |
+                  +------ persisted chunks and numeric slots -----+
+                                            |
+                                            v
+                  BM25 + dense pgvector retrieval -> reciprocal rank fusion
+                                            |
+                      +---------------------+--------------------+
+                      v                     v                    v
+                Numeric checks          Local CPU NLI       Local reranker
+                      +---------------------+--------------------+
+                                            |
+                                            v
+                               Ordered decision policy
+                                            |
+                                            v
+                      Persisted verdict, explanation and provenance
+                                            |
+                                            v
+                               FastAPI status/verdict read-back
 ```
+
+### Responsibilities
+
+| Owner | Responsibilities |
+|---|---|
+| Member A — platform and integration | FastAPI intake and read APIs, PostgreSQL persistence and Alembic migrations, settings, worker orchestration, model adapters, and deployment configuration |
+| Member B — document processing | PDF and companion CSV parsing, source anchors, claim and numeric-slot extraction, evidence-slot extraction, numeric verification, and the Scientific Research Pack |
+| Member C — retrieval and policy | BM25 and pgvector dense retrieval, reciprocal rank fusion, local NLI and reranking, and ordered verdict decisions |
+| Member D — evaluation and frontend | Development/evaluation data, threshold calibration, evaluation metrics, and the React frontend; these remain outstanding responsibilities |
+
+The backend components are integrated under `apps/`, `persistence/`, and `worker/`. Embeddings use
+the pinned `sentence-transformers/all-MiniLM-L6-v2` model (384 dimensions); NLI uses
+`cross-encoder/nli-MiniLM2-L6-H768`; and relevance ranking uses
+`cross-encoder/ms-marco-MiniLM-L6-v2`. Inference is local and CPU-only. Model revisions are pinned
+in the corresponding worker orchestration modules. The current repository does not contain the
+frontend or an evaluation dataset.
 
 ---
 
 ## 3. Project Structure
 
-The following structure represents the Member B implementation and its associated tests.
+This is the current backend repository layout. It lists existing paths and omits generated files
+and local environment contents.
 
 ```text
-evidencegraph/
-│
-├── domain/
-│   └── schemas.py #shared schema
-│
+EvidenceGraph/
+├── apps/api/                 # FastAPI app, document routes and response schemas
+├── domain/                   # Shared schemas and domain entities
+├── domain_packs/scientific_research/ # Scientific Research Pack and lexicon
+├── eg_common/                # Settings, IDs, errors and structured logging
+├── persistence/
+│   ├── migrations/versions/  # Alembic revisions 0001 through 0005
+│   ├── mappers.py
+│   ├── models.py
+│   ├── repositories.py
+│   └── session.py
 ├── worker/
-│   │
-│   ├── ingestion/
-│   │   ├── __init__.py
-│   │   ├── anchors.py
-│   │   ├── pdf_parser.py
-│   │   └── csv_parser.py
-│   │
-│   ├── extraction/
-│   │   ├── __init__.py
-│   │   ├── claims.py
-│   │   ├── slots.py
-│   │   └── evidence_slots.py
-│   │
-│   └── verification/
-│       └── numeric.py
-│
-├── domain_packs/
-│   └── scientific_research/
-│       ├── lexicon.py
-│       └── pack.py
-│
-├── tests/
-│   │
-│   ├── fixtures/
-│   │
-│   ├── unit/
-│   │   ├── test_anchors.py
-│   │   ├── test_csv_parser.py
-│   │   ├── test_pdf_parser.py
-│   │   ├── test_claims.py
-│   │   ├── test_evidence_slots.py
-│   │   ├── test_numeric.py
-│   │   ├── test_numeric_integration.py
-│   │   └── test_pack.py
-│   │
-│   └── regression/
-│       └── test_slots_golden.py
-│
-├── config/
-│   └── numeric.yaml
-│
+│   ├── extraction/           # Claims, numeric slots and evidence slots
+│   ├── ingestion/            # PDF/CSV parsers and source anchors
+│   ├── orchestration/        # Ingestion, embeddings, retrieval, verification and verdict flow
+│   ├── verification/         # Numeric verification
+│   └── main.py               # Background worker entrypoint
 ├── scripts/
+│   ├── backfill_embeddings.py
 │   └── pdf_spike.py
-│
+├── tests/
+│   ├── integration/
+│   ├── regression/
+│   └── unit/
+├── docs/
+│   ├── api.md
+│   ├── openapi.json
+│   ├── integration/
+│   └── platform/
+├── infra/docker/             # API and worker Dockerfiles
+├── .github/workflows/ci.yml
+├── AGENTS.md
+├── EvidenceGraph_Framework.md
+├── .env.example
+├── alembic.ini
+├── docker-compose.yml
+├── pyproject.toml
+├── pytest.ini
 ├── requirements.txt
-└── pytest.ini
+├── requirements-api.txt
+├── requirements-dev.txt
+└── uv.lock
 ```
 
-The structure above describes the Member B files and tests. The exact contents of shared configuration and test fixture folders may evolve as the team integrates the modules.
+The listing reflects this checkout; it does not imply that the frontend or evaluation components
+described in the project plan are present.
 
 ---
 
 ## 4. Technology Stack
 
+`pyproject.toml` declares `requires-python = ">=3.10"`; source compatibility is Python 3.10 and
+later. The current verified development environment uses Python 3.11.18, and the Docker images use
+Python 3.11. The project does not require Python 3.13.
+
 | Technology | Purpose |
 |---|---|
-| Python 3.13 | Primary implementation language |
-| Pydantic v2 | Data models and validation |
-| pdfplumber | PDF text and table extraction |
-| spaCy | Sentence segmentation and NLP preprocessing |
-| Decimal | Precise numerical representation |
-| Pint | Unit handling and comparison |
-| PyYAML | Configuration management |
-| pytest | Unit and regression testing |
+| Python 3.10+ | Declared source compatibility; current development uses Python 3.11.18 |
+| FastAPI, Pydantic v2 | HTTP API, request/response contracts and validation |
+| SQLAlchemy 2.0, psycopg 3, Alembic | Synchronous PostgreSQL access and schema migrations |
+| PostgreSQL 16, pgvector | Durable records, provenance and 384-dimensional cosine-vector search |
+| pdfplumber, spaCy | PDF text/table extraction and claim sentence segmentation |
+| sentence-transformers and PyTorch | Pinned local CPU embeddings, NLI and reranker inference |
+| Decimal, Pint | Exact numeric values and unit-aware numeric verification |
+| uv | Lockfile-based Python environment and dependency synchronization |
+| PyYAML | YAML parsing support |
+| pytest, Ruff, mypy | Tests, linting and static type checking |
 
 ---
 
@@ -151,7 +151,8 @@ The structure above describes the Member B files and tests. The exact contents o
 
 **File:** `domain/schemas.py`
 
-Defines the structured data contracts used throughout the Member B pipeline.
+Defines structured data contracts shared by the document-processing and integrated backend
+pipelines.
 
 Important models:
 
@@ -353,71 +354,104 @@ This pack provides the scientific-research-specific layer used alongside the gen
 
 ### Prerequisites
 
-- Python 3.13
-- pip
-- Git
-- Visual Studio Code (recommended)
+- Git and [uv](https://docs.astral.sh/uv/). If uv is not installed, install it with
+  `python -m pip install uv`.
+- Python 3.10 or later; Python 3.11 is used by the current development environment and Docker
+  images.
+- PostgreSQL 16 with pgvector, through Docker Compose or a local PostgreSQL installation that
+  provides the pgvector extension.
 
-### Step 1: Clone the repository
+### Create the environment
 
-```cmd
+```bash
 git clone <repository-url>
-cd evidencegraph
+cd EvidenceGraph
+uv sync --locked --python 3.11
 ```
 
-### Step 2: Create a virtual environment
+`uv sync --locked` uses the exact dependency versions in `uv.lock` and installs the project and
+development dependency groups. The explicit Python selector uses Python 3.11; the declared project
+compatibility remains Python 3.10 and later.
 
-```cmd
-py -3.13 -m venv .venv
+### Configure the environment and database
+
+```bash
+cp .env.example .env
 ```
 
-### Step 3: Activate the virtual environment
+Edit `.env` for the local database and storage location. Set `DATABASE_URL` to the local PostgreSQL
+address in this form, replacing every placeholder with local values:
 
-For Windows Command Prompt:
-
-```cmd
-.venv\Scripts\activate.bat
+```text
+postgresql+psycopg://<local-user>:<local-password>@localhost:<port>/<database>
 ```
 
-### Step 4: Install dependencies
+Do not put production credentials in this file or in the repository. Docker Compose's `postgres`
+service uses the local development database configuration defined in `docker-compose.yml` and
+creates its configured database on first startup. Start PostgreSQL and pgvector with:
 
-```cmd
-python -m pip install -r requirements.txt
+```bash
+docker compose up -d postgres
 ```
 
-### Step 5: Download the spaCy English model
+For native `uv run` commands, export values from `.env` in each shell before starting a process:
 
-```cmd
-python -m spacy download en_core_web_sm
+```bash
+set -a
+. ./.env
+set +a
 ```
 
-The claim extraction module also supports a blank English spaCy pipeline with sentence segmentation as a fallback when the trained model is unavailable.
+The API and worker must use the same `DATABASE_URL` and `STORAGE_ROOT`. The API and worker
+containers share the configured uploaded-files volume. Compose reads `.env` automatically.
 
-### Step 6: Run tests
+Apply database migrations before starting the API or worker:
 
-Run the complete test suite:
-
-```cmd
-py -3.13 -m pytest -v
+```bash
+uv run alembic upgrade head
 ```
 
-Run only unit tests:
+The migration chain currently runs from `0001_persistence_foundation` through
+`0005_one_companion_csv`. Revision `0002_dense_embeddings` enables pgvector and adds the nullable
+384-dimensional embedding column.
 
-```cmd
-py -3.13 -m pytest tests\unit -v
+### Start the API and worker
+
+In one terminal, load `.env` as above and start the FastAPI application:
+
+```bash
+uv run uvicorn apps.api.main:app --host 127.0.0.1 --port "${API_PORT:-8000}"
 ```
 
-Run regression tests:
+In a second terminal, load the same `.env` and start the background worker:
 
-```cmd
-py -3.13 -m pytest tests\regression -v
+```bash
+uv run python -m worker.main
 ```
+
+The API accepts PDF and companion CSV uploads for an existing project. The worker polls queued
+document rows, performs ingestion and verification, and persists run results. The API does not run
+model inference during upload. `docker compose up --build -d` starts the configured PostgreSQL,
+API, and worker services together.
+
+### API and OpenAPI contract
+
+- [`docs/api.md`](docs/api.md) documents document upload, processing-status read-back, verdict
+  retrieval, error responses, and provenance fields.
+- [`docs/openapi.json`](docs/openapi.json) is the checked-in OpenAPI description of the HTTP
+  routes and schemas.
+
+The principal routes are `POST /api/v1/projects/{project_id}/documents`,
+`GET /api/v1/documents/{document_id}`, and
+`GET /api/v1/analysis-runs/{run_id}/verdicts`. The API also exposes `/api/v1/health` and the
+`/health` health-check alias.
 
 ---
 
 ## 7. Testing Strategy
 
-Testing is performed at multiple levels.
+Testing covers document-processing modules, platform adapters and persistence, API contracts,
+worker orchestration, retrieval, and regression cases.
 
 ### Unit Testing
 
@@ -452,38 +486,67 @@ Examples:
 
 ### Integration Testing
 
-Integration tests exercise connected parts of the Member B pipeline, including numerical slot extraction and verification. Full validation of the complete pipeline using real research PDFs and CSV files remains a separate validation task.
+Integration tests exercise connected pipeline stages and PostgreSQL-backed retrieval. The complete
+worker flow is also tested with deterministic data and mocked model inference. These tests do not
+establish accuracy on representative real-world research documents.
+
+Run the suite, Ruff, and the mypy targets used by CI with:
+
+```bash
+uv run python -m pytest
+uv run ruff check .
+uv run mypy eg_common persistence apps worker/orchestration worker/reporting worker/main.py
+```
+
+PostgreSQL retrieval integration tests use a dedicated migrated PostgreSQL/pgvector database. Set
+`TEST_DATABASE_URL` to that test database and run:
+
+```bash
+uv run python -m pytest tests/integration/test_retrieval.py
+```
+
+If `TEST_DATABASE_URL` is unset outside CI, those database integration tests skip. In CI, the
+integration fixture requires the variable.
 
 ---
 
 ## 8. Current Implementation Status
 
-Progress :
+The integrated engineering path is implemented and covered by unit, integration, and mocked
+end-to-end tests:
 
-| Stage | Component | Status |
-|---|---|---|
-| 0 | Environment and project setup | Completed |
-| 1 | Pydantic schemas | Implemented and used across the Member B modules |
-| 2 | Deterministic anchors | Implemented and tested |
-| 3 | CSV ingestion | Implemented; unit tests included in the passing test suite |
-| 4 | PDF ingestion | Implemented; mocked/unit tests passed; real research-PDF validation remains |
-| 5A | Scientific research lexicon | Implemented and tested |
-| 5B | Numeric slot extraction | Implemented and tested |
-| 6 | Claim extraction | Implemented and tested |
-| 7 | Evidence slot extraction | Implemented and tested |
-| 8 | Numeric verification | Implemented and tested |
-| 9 | Scientific Research Pack | Implemented and tested |
-| 10 | Integration and end-to-end testing | Partially covered by module-level integration tests; full real-document end-to-end validation remains |
+| Component | Current status |
+|---|---|
+| PDF and companion CSV intake, parsing and source anchors | Implemented; automated tests cover parser and ingestion behavior |
+| PostgreSQL persistence and Alembic migrations 0001–0005 | Implemented; migration and repository tests are present |
+| Background worker, retries and deterministic analysis runs | Implemented; worker and end-to-end tests are present |
+| Claim extraction and numeric verification | Implemented and tested; detailed behavior is described in Section 5 |
+| BM25, dense pgvector retrieval and reciprocal rank fusion | Implemented; unit and PostgreSQL integration coverage is present |
+| Local CPU embeddings, NLI and reranking | Implemented with pinned model revisions; tests mock inference and do not download weights |
+| Ordered policy and persisted verdict/provenance read-back | Implemented and tested; unset required thresholds produce Needs Review |
+| FastAPI document intake, status and verdict endpoints | Implemented and tested; contracts are documented in `docs/api.md` |
+| Evaluation on representative research documents | Not yet established; requires real-document data and evaluation |
+| React frontend | Not present in this repository; remains a Member D responsibility |
 
-**Testing note:** The latest reported complete test-suite run passed **123 tests**. This confirms that the current automated tests pass in the tested environment. It does not, by itself, establish extraction accuracy on real research documents or replace manual validation against representative PDFs and CSV files.
+The latest verified results recorded for the project are **218 passed** for the full test suite,
+**3 passed** PostgreSQL retrieval integration tests, Ruff passed, and mypy passed for **37 source
+files**. These are results from the latest verified run, not a guarantee that future runs will
+pass.
 
-The PDF parser has passed mocked/unit tests. Validation against a collection of real research PDFs is still required.
+The policy settings `POLICY_TAU_EXT`, `POLICY_TAU_RET`, `POLICY_TAU_E`, and `POLICY_TAU_C` remain
+unset until Person D supplies development-set results and calibration. The backend implements the
+ordered decision rules and abstention, but retrieval or verdict accuracy has not been established
+on a representative real-world research dataset.
+
+The PDF parser handles text-based PDFs. Scanned/image-only PDFs are reported as unsupported; OCR
+is not implemented. Validation on representative real PDFs and CSVs, including inspection of
+extracted claims and source locations, remains outstanding.
 
 ---
 
 ## 9. Design Considerations
 
-The Member B implementation follows these principles:
+The backend follows these principles:
 
 **1. Traceability**
 
@@ -507,53 +570,42 @@ Ingestion, extraction, verification and domain-specific logic are maintained in 
 
 **6. Testability**
 
-Each component is designed to be independently testable before integration.
+Each component is designed to be independently testable and is also exercised through integrated
+worker and API tests.
 
 ---
 
 ## 10. Integration with Other Members
 
-Member B's modules are designed to integrate with the platform architecture maintained by Member A.
-
-The processing pipeline consumes document-level inputs and produces structured outputs that can be persisted and used by downstream components.
-
-Expected integration data includes:
-
-- `document_id`
-- `file_hash`
-- `file_type`
-- Evidence chunks
-- Extracted claims
-- Numeric slots
-- Evidence slots
-- Numeric verification results
-
-The shared schemas and function signatures should remain aligned with the contracts agreed upon by the team.
-
-Database persistence, API endpoints, job orchestration and deployment are handled by the platform/integration responsibilities rather than independently duplicated in this module.
+The backend connects document parsers and extractors with persistence, retrieval, verification,
+and API read-back. Document and analysis-run IDs are persisted; source anchors and chunk identity
+remain attached to evidence through retrieval and verdict generation. Numeric values preserve
+`Decimal` semantics in persistence and API serialization.
 
 ---
 
 ## 11. Future Work
 
-The core Member B modules have been implemented and the current automated test suite passes. The remaining work is primarily validation, hardening and integration:
+Engineering integration is in place; the remaining project work is primarily evaluation and user
+experience:
 
-1. Validate PDF extraction on a representative collection of real scientific research documents.
-2. Test the CSV ingestion flow using representative real CSV files.
-3. Inspect extracted claims and evidence slots against their original source content.
-4. Build and evaluate manually annotated examples for claim extraction, numeric slots and numeric verification.
-5. Measure extraction and slot accuracy on the annotated examples and document limitations.
-6. Add or complete end-to-end tests for the full Member B pipeline using real documents, including a controlled numerical disagreement case.
-7. Check deterministic outputs across repeated runs.
-8. Test robustness cases such as encrypted or empty PDFs, large tables, CSV BOM and ragged rows.
-9. Coordinate shared schema, function-signature and output integration with Member A and the other team members.
+1. Person D supplies development and evaluation data, including annotated claims and the
+   evaluation splits described in `EvidenceGraph_Framework.md`.
+2. Person D evaluates extraction, retrieval, verification, verdict quality, abstention and
+   calibration; those results are needed to set the four policy thresholds. Until then, they
+   remain unset.
+3. Person D implements the frontend against the API contracts in `docs/api.md` and
+   `docs/openapi.json`.
+4. Validate ingestion against representative real research PDFs and CSVs and inspect extracted
+   claims, numeric slots, evidence, anchors and verdict explanations.
+5. OCR for scanned PDFs remains outside the current implementation. Scanned/image-only PDFs
+   cannot be processed by the current PDF parser.
 
 ---
 
 ## 12. Expected Outcome
 
-At completion, the Member B pipeline will convert research documents into traceable, structured claims and evidence.
-
-It will support the extraction of numerical information from research text and evidence tables, preserve source references, and provide a systematic mechanism for checking whether numerical claims are supported by the available evidence.
-
-This module forms the document-processing, claim-extraction and numerical-verification foundation of EvidenceGraph.
+The current backend accepts PDF and companion CSV documents, processes them asynchronously, and
+persists claims, verification outputs, verdicts and source provenance. It provides a versioned
+decision policy with abstention when evidence or calibrated thresholds are insufficient. Its
+automated engineering tests do not substitute for evaluation on representative real research data.

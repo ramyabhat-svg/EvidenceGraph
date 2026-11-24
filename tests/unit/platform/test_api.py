@@ -135,7 +135,13 @@ def test_cors_does_not_allow_an_unconfigured_origin() -> None:
 def test_api_routes_use_versioned_prefix_except_health_alias() -> None:
     """All application routes are versioned apart from the Docker health alias."""
     app = create_app(Settings(_env_file=None), database_check=lambda: True)
-    paths = {route.path for route in app.routes}
+    paths = set(app.openapi()["paths"]) | {"/health"}
 
-    assert paths == {"/api/v1/health", "/health"}
+    assert paths == {
+        "/api/v1/health",
+        "/health",
+        "/api/v1/projects/{project_id}/documents",
+        "/api/v1/documents/{document_id}",
+        "/api/v1/analysis-runs/{run_id}/verdicts",
+    }
     assert all(path.startswith("/api/v1/") or path == "/health" for path in paths)

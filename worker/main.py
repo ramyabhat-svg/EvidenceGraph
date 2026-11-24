@@ -6,6 +6,8 @@ import threading
 
 from eg_common.logging import configure_logging, log_event
 from eg_common.settings import get_settings
+from persistence.session import get_session_factory
+from worker.orchestration.ingestion import process_next_document
 
 
 def main() -> None:
@@ -22,7 +24,15 @@ def main() -> None:
     signal.signal(signal.SIGINT, request_shutdown)
     log_event(logger, "worker_started")
     while not stop_event.wait(timeout=settings.worker_poll_seconds):
-        pass
+        try:
+            process_next_document(get_session_factory())
+        except Exception:
+            log_event(
+                logger,
+                "document_processing_failed",
+                error_code="worker_processing_failed",
+                level=logging.ERROR,
+            )
     log_event(logger, "worker_stopped")
 
 
