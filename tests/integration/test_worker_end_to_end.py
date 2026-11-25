@@ -211,7 +211,9 @@ def test_queued_pdf_reaches_persisted_abstaining_verdict_and_retries_idempotentl
         )
         assert len(claim_rows) == 1
         claim_id = claim_rows[0].id
-        assert session.get(AnalysisRunRow, run_id) is not None
+        completed_run = session.get(AnalysisRunRow, run_id)
+        assert completed_run is not None
+        assert completed_run.completed_at is not None
         assert len(list(session.scalars(select(EvidenceChunkRow)))) == 2
         assert len(list(session.scalars(select(NumericCheckRow.id)))) == 1
         assert len(list(session.scalars(select(NLIResultRow.id)))) == 1

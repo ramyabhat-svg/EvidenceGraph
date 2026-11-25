@@ -2,6 +2,8 @@
 from decimal import Decimal
 from enum import Enum
 from uuid import UUID
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -55,6 +57,8 @@ class NumericSlots(BaseModel):          # Framework 4.6. None = not established,
     period: str | None = None
     comparison_basis: str | None = None
     denominator: str | None = None
+    numerator: str | None = None
+    difference_kind: Literal["absolute", "relative"] | None = None
     decimals: int | None = None         # digits after the point, as written
     approximate: bool = False
     source_anchor_id: str | None = None
@@ -79,7 +83,7 @@ class Claim(BaseModel):
     char_end: int
     numeric_slots: list[NumericSlots] = Field(default_factory=list)
     extraction_method: str
-    extraction_confidence: float        # rule score, NOT a probability
+    extraction_confidence: float = Field(ge=0, le=1)  # extraction reliability, not truth confidence
     low_quality: bool = False
 
 

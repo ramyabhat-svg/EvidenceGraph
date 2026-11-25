@@ -34,6 +34,7 @@ CASES = [
     (
         "The model has 2.1M parameters.",
         {
+            "metric": "parameters",
             "value": D("2.1"),
             "scale": D(1000000),
             "decimals": 1,
@@ -52,6 +53,7 @@ CASES = [
     (
         "Latency dropped to about 120 ms.",
         {
+            "metric": "latency",
             "value": D("120"),
             "unit": "ms",
             "decimals": 0,

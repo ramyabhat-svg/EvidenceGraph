@@ -197,7 +197,7 @@ export function ClaimRecord({trace, project, addedReviews = [], onReview}: {
       <section><h2>Evidence and checks</h2>{trace.retrieved_evidence.length === 0 && <p>No evidence candidates.</p>}
         {trace.retrieved_evidence.map(item => <article key={item.evidence_id} className="evidence">
           <small>{item.retrieval_rank != null && `Rank ${item.retrieval_rank} · `}{anchorLabel(item.source_anchor)}</small><p>{item.evidence_text}</p>
-          {[['BM25', item.bm25_score], ['Dense', item.dense_score], ['Reranker', item.reranker_score]]
+          {[['BM25', item.bm25_score], ['Dense', item.dense_score], ['RRF', item.rrf_score ?? null], ['Reranker', item.reranker_score]]
             .filter(([, score]) => score !== null).map(([label, score]) => <small key={label}>{label} {score} </small>)}
           {trace.nli_results.filter(nli => nli.evidence_id === item.evidence_id).map((nli, index) =>
             <p key={index}>NLI {nli.label} · {nli.model_name}@{nli.model_revision} · {Object.entries(nli.probabilities).map(([name, value]) => name + ' ' + value).join(' · ')}</p>)}
@@ -243,6 +243,17 @@ function Runs({project}: {project: string}) {
   </>;
 }
 
+function ProjectsIndex({projects, error}: {projects: Project[]; error?: string}) {
+  return <><Heading title="Projects"><a className="button" href="#/">Add a paper</a></Heading>
+    {error ? <p className="error" role="alert">{error}</p> : projects.length === 0 ?
+      <p>No projects yet. Add a paper to create one.</p> :
+      <ul className="ledger">{projects.map(project => <li key={project.project_id}>
+        <a href={projectPath(project.project_id)}>{project.name}</a>
+        <small>{project.document_count} documents</small>
+      </li>)}</ul>}
+  </>;
+}
+
 export function App() {
   const [segments, setSegments] = useState(route);
   useEffect(() => {
@@ -252,10 +263,11 @@ export function App() {
   }, []);
   const [section, projectId, view, id] = segments;
   const engineering = engineeringEnabled && section === 'engineering';
-  const projects = useResource<{projects: Project[]}>(engineering ? null : '/projects?' + segments.join('/').replaceAll('/', '_'));
+  const projects = useResource<{projects: Project[]}>('/projects');
   const project = useResource<Project>(section === 'projects' && projectId ? '/projects/' + projectId : null);
   let screen: ReactNode = <Upload key={segments.join('/')} />;
   if (engineering) screen = <EngineeringRuns />;
+  else if (section === 'projects' && !projectId) screen = <ProjectsIndex projects={projects.data?.projects ?? []} error={projects.error} />;
   else if (section === 'projects' && projectId) {
     if (!project.data) screen = <Loading error={project.error} />;
     else if (view === 'upload') screen = <Upload key={projectId} project={project.data} />;
@@ -267,7 +279,7 @@ export function App() {
   return <div className="shell"><a className="skip-link" href="#main-content" onClick={event => { event.preventDefault(); document.getElementById("main-content")?.focus(); }}>Skip to workspace</a><aside className="rail">
     <a className="brand" href="#/">Evidence<span>Graph</span></a>
     <div className="rail-body"><div><a className="add" href="#/">Add a paper</a>{engineeringEnabled && <p><a href="#/engineering" aria-current={engineering ? 'page' : undefined}>Inspect a run</a></p>}</div>
-      <nav aria-label="Projects"><h2>Projects</h2>{projects.data?.projects.map(item =>
+      <nav aria-label="Projects"><h2><a href="#/projects" aria-current={section === 'projects' && !projectId ? 'page' : undefined}>Projects</a></h2>{projects.data?.projects.map(item =>
         <div className="rail-project" key={item.project_id}>
           <a href={projectPath(item.project_id)} aria-current={item.project_id === projectId && !view ? 'page' : undefined}>{item.name}</a>
           {item.project_id === projectId && <a className="run-link" href={projectPath(projectId) + '/runs'} aria-current={view === 'runs' ? 'page' : undefined}>Analysis runs</a>}

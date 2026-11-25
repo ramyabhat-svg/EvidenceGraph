@@ -12,6 +12,34 @@ from .slots import (
 
 
 _HDR_UNIT = re.compile(r"\(([^)]*)\)\s*$")
+_ENTITY_HEADER = re.compile(
+    r"^(?:configuration|config|model|method|system)\s+[a-z0-9-]+$|^(?:ours|baseline|control)$",
+    re.I,
+)
+
+
+def _metric_name(text: str) -> str:
+    """Canonicalize a known metric label, retaining unknown labels as normalized text."""
+    return canonical_metric(text)
+
+
+def _is_metric_label(text: str) -> bool:
+    """Return whether a table row label contains a recognized metric alias."""
+    normalized = text.casefold()
+    return any(
+        alias.casefold() in normalized
+        for aliases in lx.METRIC_ALIASES.values()
+        for alias in aliases
+    )
+
+
+def _is_measure_matrix(headers: list[str], label: str) -> bool:
+    """Recognize tables whose first column is a measure and other columns are entities."""
+    first_header = headers[0].strip().casefold()
+    return (
+        first_header in {"measure", "metric", "outcome", "measure / metric"}
+        or (_is_metric_label(label) and all(_ENTITY_HEADER.match(item.strip()) for item in headers[1:]))
+    )
 
 
 def slots_from_chunk(chunk: EvidenceChunk) -> list[NumericSlots]:
@@ -40,14 +68,36 @@ def slots_from_chunk(chunk: EvidenceChunk) -> list[NumericSlots]:
     if not headers:
         return []
 
-    # Roadmap assumption: first column identifies the entity.
     label = chunk.cells[headers[0]]
-    entity = canonical_entity(label) if label else None
-
-    # The caption may provide the period for the entire table.
     caption_period = find_period(chunk.caption or "")
-
     output = []
+
+    if _is_measure_matrix(headers, label):
+        metric = _metric_name(label)
+        for col, entity_header in enumerate(headers[1:], start=1):
+            cell = chunk.cells[entity_header]
+            if not cell:
+                continue
+            unit_match = _HDR_UNIT.search(label)
+            header_unit = unit_match.group(1).strip() if unit_match else ""
+            unit = (
+                {"%": "percent", "percent": "percent"}.get(header_unit.casefold())
+                or lx.UNIT_TOKENS.get(header_unit)
+            )
+            context = SlotContext(
+                metric=metric,
+                entity=canonical_entity(entity_header),
+                unit=unit,
+                period=find_period(label) or caption_period,
+                anchor_id=f"{chunk.anchor.anchor_id}:c{col}",
+            )
+            slots = parse_all_numeric_slots(cell, context)
+            if slots:
+                output.append(slots[0])
+        return output
+
+    # Entity-row tables use the first column for an entity and the rest for metrics.
+    entity = canonical_entity(label) if label else None
 
     # Remaining columns contain metrics and their values.
     for col, header in enumerate(headers[1:], start=1):
@@ -68,7 +118,7 @@ def slots_from_chunk(chunk: EvidenceChunk) -> list[NumericSlots]:
         )
 
         context = SlotContext(
-            metric=canonical_metric(header),
+            metric=_metric_name(header),
             entity=entity,
             unit=unit,
             period=find_period(header) or caption_period,

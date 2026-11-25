@@ -11,6 +11,11 @@ METRIC_ALIASES = {
     "auc": ["auc", "auroc", "roc auc"],
     "rmse": ["rmse", "root mean square error"],
     "mae": ["mae", "mean absolute error"],
+    "relevant_result_rate": ["relevant-result rate", "relevant result rate"],
+    "relevant_results": ["relevant results", "relevant result count"],
+    "queries_evaluated": ["queries evaluated", "query count", "queries"],
+    "parameters": ["parameters", "parameter count"],
+    "latency": ["latency", "inference time", "response time"],
 }
 
 
@@ -74,4 +79,8 @@ UNIT_TOKENS = {
     "km": "km",
     "m": "m",
     "Hz": "Hz",
+    "query": "query",
+    "queries": "query",
+    "result": "result",
+    "results": "result",
 }

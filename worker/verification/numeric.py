@@ -1,6 +1,6 @@
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 from uuid import UUID
 
@@ -32,6 +32,7 @@ class SlotVerification:
     overall: CheckResult
     reason: str
     per_evidence: list[tuple[UUID, NumericCheck]]
+    trace: list[str] = field(default_factory=list)
 
 
 def _norm(value: str | None) -> str | None:
@@ -236,11 +237,13 @@ def verify_numeric_claim(
             continue
 
         comparisons = []
+        evidence_slots_by_chunk: list[tuple[EvidenceChunk, NumericSlots]] = []
 
         for chunk in evidence_chunks:
             evidence_slots = slots_from_chunk(chunk)
 
             for evidence_slot in evidence_slots:
+                evidence_slots_by_chunk.append((chunk, evidence_slot))
                 check = compare_slots(
                     claim_slot,
                     evidence_slot,
@@ -249,6 +252,15 @@ def verify_numeric_claim(
 
                 comparisons.append((chunk.chunk_id, check))
 
+        derived = _verify_explicit_difference(
+            claim_slot, evidence_slots_by_chunk, config
+        )
+        aggregate_trace: list[str] = []
+        if derived is not None:
+            derived_check, support = derived
+            comparisons.extend((chunk_id, derived_check) for chunk_id in support)
+            aggregate_trace.extend(derived_check.trace)
+
         if not comparisons:
             output.append(
                 SlotVerification(
@@ -256,6 +268,7 @@ def verify_numeric_claim(
                     overall=CheckResult.INCOMPARABLE,
                     reason="no_numeric_evidence",
                     per_evidence=[],
+                    trace=aggregate_trace,
                 )
             )
             continue
@@ -300,7 +313,79 @@ def verify_numeric_claim(
                 overall=overall,
                 reason=reason,
                 per_evidence=comparisons,
+                trace=aggregate_trace,
             )
         )
 
     return output
+
+
+def _verify_explicit_difference(
+    claim: NumericSlots,
+    evidence: list[tuple[EvidenceChunk, NumericSlots]],
+    config: NumericConfig,
+) -> tuple[NumericCheck, list[UUID]] | None:
+    """Derive an explicit difference only from context-compatible endpoint values."""
+    if (
+        claim.value is None
+        or claim.entity is None
+        or claim.comparison_basis is None
+        or claim.metric is None
+        or claim.difference_kind is None
+    ):
+        return None
+    current_entity = _norm(claim.entity)
+    baseline_entity = _norm(claim.comparison_basis)
+    candidates: list[tuple[EvidenceChunk, NumericSlots]] = []
+    for chunk, slot in evidence:
+        if (
+            slot.value is None
+            or _norm(slot.metric) != _norm(claim.metric)
+            or _norm(slot.period) != _norm(claim.period)
+            or _norm(slot.denominator) != _norm(claim.denominator)
+        ):
+            continue
+        candidates.append((chunk, slot))
+
+    for current_chunk, current in candidates:
+        if _norm(current.entity) != current_entity:
+            continue
+        for baseline_chunk, baseline in candidates:
+            if _norm(baseline.entity) != baseline_entity:
+                continue
+            if current is baseline:
+                continue
+            same_source = current_chunk.chunk_id == baseline_chunk.chunk_id
+            if not same_source and claim.unit in {"percent", "percentage_point"}:
+                if claim.denominator is None:
+                    continue
+            if current.unit != baseline.unit or current.scale != baseline.scale:
+                continue
+            if claim.unit == "percentage_point":
+                if current.unit not in {"percent", "ratio"}:
+                    continue
+                factor = Decimal("0.01") if current.unit == "percent" else Decimal(1)
+                value = (current.value * factor - baseline.value * factor) * Decimal(100)
+            elif claim.difference_kind == "relative":
+                if current.unit != baseline.unit or baseline.value == 0:
+                    continue
+                value = (current.value - baseline.value) / abs(baseline.value) * Decimal(100)
+                if claim.unit != "percent":
+                    continue
+            else:
+                if current.unit != baseline.unit or current.unit in {"percent", "ratio"}:
+                    continue
+                value = current.value - baseline.value
+                if claim.unit != current.unit:
+                    continue
+            derived_slot = claim.model_copy(
+                update={"raw_text": "derived from explicitly matched endpoints", "value": value}
+            )
+            check = compare_slots(claim, derived_slot, config)
+            check.trace.insert(
+                0,
+                f"Derived {claim.difference_kind} difference from {current.value} "
+                f"({current.entity}) and {baseline.value} ({baseline.entity})",
+            )
+            return check, list(dict.fromkeys((current_chunk.chunk_id, baseline_chunk.chunk_id)))
+    return None

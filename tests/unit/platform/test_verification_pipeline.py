@@ -439,6 +439,71 @@ def test_unset_calibration_thresholds_persist_needs_review_without_weights(
         assert row.reason == "threshold_unavailable:tau_ext"
 
 
+def test_verdict_evidence_is_ordered_by_reranker_and_keeps_retrieval_scores(
+    session_factory: sessionmaker[Session],
+) -> None:
+    """Reranking controls displayed evidence order without replacing retrieval provenance."""
+    preferred = _evidence(uuid4(), "91.2").model_copy(
+        update={"text": "Accuracy Ours 91.2 direct measurement"}
+    )
+    secondary = _evidence(uuid4(), "91.2").model_copy(
+        update={"text": "Accuracy Ours 91.2 contextual passage"}
+    )
+
+    class FakeNLIService:
+        def classify_pairs(
+            self, pairs: list[tuple[str, str]]
+        ) -> list[NLIClassification]:
+            return [
+                NLIClassification(NLILabel.ENTAILMENT, 0.02, 0.96, 0.02)
+                for _ in pairs
+            ]
+
+    class FakeReranker:
+        def score_pairs(
+            self, _claim: Claim, chunks: list[EvidenceChunk]
+        ) -> list[float]:
+            return [0.95 if "direct measurement" in chunk.text else 0.2 for chunk in chunks]
+
+    settings = Settings(
+        _env_file=None,
+        retrieval_top_k=10,
+        policy_tau_ext=0.5,
+        policy_tau_ret=0.5,
+        policy_tau_e=0.8,
+        policy_tau_c=0.8,
+    )
+    with session_factory() as session, session.begin():
+        _project_id, document_id, _claim_obj = _seed(
+            session, evidence=[secondary, preferred]
+        )
+        numeric = verification.verify_and_persist_document_claims(
+            session, document_id, settings=settings
+        )
+        output = semantic_verification.generate_document_verdicts(
+            session,
+            document_id,
+            numeric_outputs=numeric,
+            settings=settings,
+            nli_service=FakeNLIService(),
+            reranker=FakeReranker(),
+        )
+        (verdict_row,) = session.scalars(select(VerdictRow)).all()
+        retrieval = verdict_row.policy_inputs["retrieval"]
+        nli_outputs = verdict_row.policy_inputs["nli_results"]
+        policy_nli_ids = verdict_row.policy_inputs["policy_nli_evidence_ids"]
+
+    assert output[0].evidence[0].text.endswith("direct measurement")
+    assert retrieval[0]["rank"] == 1
+    assert retrieval[0]["reranker_score"] == pytest.approx(0.95)
+    assert retrieval[0]["retrieval_rank"] >= 1
+    assert "retrieval_score" in retrieval[0]
+    assert {item["evidence_id"] for item in nli_outputs} == {
+        item["evidence_id"] for item in retrieval
+    }
+    assert policy_nli_ids == [retrieval[0]["evidence_id"]]
+
+
 def test_worker_records_numeric_verification_failure_safely(
     session_factory: sessionmaker[Session],
     tmp_path: Path,

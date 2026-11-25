@@ -100,6 +100,39 @@ def test_model_load_is_revision_pinned_and_cpu_only_without_weight_downloads(
     assert fake_model.options["batch_size"] == 3
 
 
+@pytest.mark.parametrize(
+    ("logits", "expected"),
+    [
+        ([0.0, 4.0, 0.0], NLILabel.ENTAILMENT),
+        ([4.0, 0.0, 0.0], NLILabel.CONTRADICTION),
+        ([0.0, 0.0, 4.0], NLILabel.NEUTRAL),
+    ],
+)
+def test_model_logits_map_to_each_canonical_nli_label(
+    logits: list[float], expected: NLILabel
+) -> None:
+    """Contradiction, entailment, and neutral logits map through explicit model indices."""
+
+    class FixedModel:
+        model = SimpleNamespace(
+            config=SimpleNamespace(
+                id2label={0: "contradiction", 1: "entailment", 2: "neutral"}
+            )
+        )
+
+        def predict(self, _pairs: list[tuple[str, str]], **_options: object) -> list[list[float]]:
+            return [logits]
+
+    [result] = nli.LocalCPUNLIService(batch_size=1, model=FixedModel()).classify_pairs(
+        [("evidence premise", "claim hypothesis")]
+    )
+
+    assert result.label is expected
+    assert sum(
+        (result.contradiction_score, result.entailment_score, result.neutral_score)
+    ) == pytest.approx(1.0)
+
+
 def test_claim_context_and_original_claim_are_the_ordered_nli_pair() -> None:
     """Evidence context is premise and the unchanged claim is hypothesis."""
     claim, chunk = _claim(), _evidence()

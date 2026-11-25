@@ -121,6 +121,19 @@ def generate_document_verdicts(
             evidence_ids,
             reranker,
         )
+        order = sorted(
+            range(len(evidence)),
+            key=lambda index: (
+                -reranker_scores[index],
+                ranked[index].rank,
+                str(evidence_ids[index]),
+            ),
+        )
+        evidence = [evidence[index] for index in order]
+        evidence_ids = [evidence_ids[index] for index in order]
+        classifications = [classifications[index] for index in order]
+        ranked = [ranked[index] for index in order]
+        reranker_scores = [reranker_scores[index] for index in order]
         best_reranker_score = max(reranker_scores) if reranker_scores else None
         best_evidence_is_low_quality = (
             evidence[reranker_scores.index(best_reranker_score)].anchor.low_quality
@@ -128,12 +141,21 @@ def generate_document_verdicts(
             else any(chunk.anchor.low_quality for chunk in evidence)
         )
         thresholds = DecisionThresholds.from_settings(config)
+        policy_nli_results = (
+            [
+                classification
+                for classification, score in zip(classifications, reranker_scores)
+                if thresholds.tau_ret is not None and score >= thresholds.tau_ret
+            ]
+            if thresholds.tau_ret is not None
+            else classifications
+        )
         verdict = decide_verdict(
             extraction_confidence=claim.extraction_confidence,
             claim_low_quality=claim.low_quality,
             evidence_low_quality=best_evidence_is_low_quality,
             numeric_results=numeric_results,
-            nli_results=classifications,
+            nli_results=policy_nli_results,
             best_reranker_score=best_reranker_score,
             thresholds=thresholds,
             retrieval_empty=not evidence,
@@ -151,16 +173,38 @@ def generate_document_verdicts(
                 "numeric_slot_results": [result.overall.value for result in numeric_results],
                 "numeric_slot_indices": [result.slot_index for result in numeric_results],
                 "nli_results": [
-                    {**asdict(result), "label": result.label.value}
-                    for result in classifications
+                    {
+                        "evidence_id": str(evidence_id),
+                        **asdict(result),
+                        "label": result.label.value,
+                    }
+                    for evidence_id, result in zip(evidence_ids, classifications)
+                ],
+                "policy_nli_evidence_ids": [
+                    str(evidence_id)
+                    for evidence_id, score in zip(evidence_ids, reranker_scores)
+                    if thresholds.tau_ret is not None and score >= thresholds.tau_ret
                 ],
                 "best_reranker_score": best_reranker_score,
                 "thresholds": asdict(thresholds),
                 "part_outcomes": [],
                 "retrieval_empty": not evidence,
                 "retrieval": [
-                    {"evidence_id": str(evidence_id), "rank": item.rank, "score": item.score}
-                    for evidence_id, item in zip(evidence_ids, ranked)
+                    {
+                        "evidence_id": str(evidence_id),
+                        "rank": rank,
+                        "retrieval_rank": item.rank,
+                        "retrieval_score": item.score,
+                        "bm25_score": item.bm25_score,
+                        "bm25_rank": item.bm25_rank,
+                        "dense_score": item.dense_score,
+                        "dense_rank": item.dense_rank,
+                        "rrf_score": item.rrf_score,
+                        "reranker_score": score,
+                    }
+                    for rank, (evidence_id, item, score) in enumerate(
+                        zip(evidence_ids, ranked, reranker_scores), start=1
+                    )
                 ],
             },
         )

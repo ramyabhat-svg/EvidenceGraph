@@ -139,3 +139,42 @@ def test_evidence_comparison_details_are_preserved():
     assert evidence_id is not None
     assert numeric_check.result == CheckResult.MATCH
     assert numeric_check.validator_version == "numeric-1"
+
+
+def test_percentage_point_difference_can_use_two_separate_endpoint_passages():
+    """A contextualized A/B comparison is derived only from matching endpoints."""
+    document_id = uuid4()
+    claim = Claim(
+        claim_id=uuid4(),
+        document_id=document_id,
+        claim_text="Configuration B's relevant-result rate was 10 percentage points higher.",
+        claim_type=ClaimType.COMPARATIVE,
+        source_anchor_id="claim",
+        char_start=0,
+        char_end=78,
+        numeric_slots=[NumericSlots(
+            raw_text="10 percentage points", value=Decimal("10"), unit="percentage_point",
+            metric="relevant_result_rate", entity="Configuration B",
+            comparison_basis="Configuration A", period="test", denominator="100 queries", decimals=0,
+            difference_kind="absolute",
+        )],
+        extraction_method="test",
+        extraction_confidence=0.9,
+    )
+    endpoints = [
+        ("Configuration B had a relevant-result rate of 90% on the test set out of 100 queries.", "b"),
+        ("Configuration A had a relevant-result rate of 80% on the test set out of 100 queries.", "a"),
+    ]
+    evidence = []
+    for text, suffix in endpoints:
+        anchor = SourceAnchor(
+            anchor_id=suffix, document_id=document_id, kind=AnchorKind.PARAGRAPH,
+            extraction_method="test", parser_version="test",
+        )
+        evidence.append(EvidenceChunk(
+            chunk_id=uuid4(), document_id=document_id, anchor=anchor, text=text,
+        ))
+    result = verify_numeric_claim(claim, evidence)[0]
+    assert result.overall == CheckResult.MATCH
+    assert result.reason == "matching_evidence_found"
+    assert result.trace and "Derived absolute difference" in result.trace[0]

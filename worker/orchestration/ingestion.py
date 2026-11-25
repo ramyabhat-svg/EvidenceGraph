@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 from pathlib import Path
 from uuid import UUID
 
@@ -11,7 +12,8 @@ from sqlalchemy.orm import Session, aliased, sessionmaker
 
 from domain.schemas import IngestionResult
 from eg_common.logging import log_event
-from persistence.models import DocumentRow
+from eg_common.settings import get_settings
+from persistence.models import AnalysisRunRow, DocumentRow
 from persistence.repositories import PersistenceNotFoundError, PersistenceRepository
 from worker.ingestion.csv_parser import ingest_csv
 from worker.ingestion.pdf_parser import ScannedPdfError, ingest_pdf
@@ -19,6 +21,7 @@ from worker.orchestration.claims import extract_and_persist_claims
 from worker.orchestration.embeddings import EmbeddingService, generate_document_embeddings
 from worker.orchestration.nli import NLIService
 from worker.orchestration.reranking import EvidenceReranker
+from worker.orchestration.run_identity import analysis_run_id
 from worker.orchestration.semantic_verification import generate_document_verdicts
 from worker.orchestration.verification import verify_and_persist_document_claims
 
@@ -152,6 +155,9 @@ def process_next_document(
                     nli_service=nli_service,
                     reranker=reranker,
                 )
+                run = session.get(AnalysisRunRow, analysis_run_id(document_id, get_settings()))
+                if run is not None:
+                    run.completed_at = datetime.now(timezone.utc)
     except Exception:
         with session_factory() as session, session.begin():
             document = session.get(DocumentRow, document_id)

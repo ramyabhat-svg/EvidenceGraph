@@ -78,6 +78,11 @@ the repository rules; unresolved confirmations are recorded in the request files
     queued document transaction commits. CSV uploads require a same-project parent PDF, following
     the existing document repository relationship contract. The one-companion-CSV rule is enforced
     with a partial unique index so concurrent uploads cannot violate it.
+20. **Run completion and report diagnostics:** `analysis_runs.completed_at` is nullable for
+    historical compatibility and is populated only after successful end-to-end verdict persistence.
+    Workspace run and report responses expose that timestamp, persisted policy inputs, evidence IDs,
+    RRF rank/score, and reranker score. The report orders evidence by reranker score while retaining
+    its original retrieval rank and fused score; neither ranking score is treated as entailment.
 
 ## Phase 0 findings
 

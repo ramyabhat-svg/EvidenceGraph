@@ -95,8 +95,24 @@ def test_rrf_combines_rankings_and_deduplicates_source_chunks() -> None:
 
     assert [item.chunk for item in results] == [first, second]
     assert results[0].score == pytest.approx(1 / 11 + 1 / 12)
+    assert results[0].rrf_score == pytest.approx(results[0].score)
     assert results[1].score == pytest.approx(1 / 12 + 1 / 13)
     assert [item.rank for item in results] == [1, 2]
+
+
+def test_rrf_preserves_component_scores_and_ranks() -> None:
+    """Fused output retains the independent BM25 and dense diagnostics."""
+    chunk = _chunk(uuid4(), 0, "combined evidence")
+    result = reciprocal_rank_fusion(
+        [[RankedEvidence(chunk, 2.4, 2, bm25_score=2.4, bm25_rank=2)],
+         [RankedEvidence(chunk, 0.82, 1, dense_score=0.82, dense_rank=1)]],
+        rrf_k=10,
+        top_k=1,
+    )[0]
+    assert result.bm25_score == 2.4
+    assert result.bm25_rank == 2
+    assert result.dense_score == 0.82
+    assert result.dense_rank == 1
 
 
 def test_rrf_rejects_conflicting_duplicate_identity() -> None:

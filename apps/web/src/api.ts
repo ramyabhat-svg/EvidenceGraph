@@ -24,7 +24,8 @@ export type Trace = Omit<Claim, 'verdict_status'> & {
   numeric_slots: Record<string, string | number | boolean | null>[] | null;
   retrieved_evidence: {
     evidence_id: string; evidence_text: string; source_anchor: Anchor; retrieval_rank: number | null;
-    bm25_score: number | null; dense_score: number | null; reranker_score: number | null;
+    bm25_score: number | null; bm25_rank?: number | null; dense_score: number | null;
+    dense_rank?: number | null; rrf_score?: number | null; reranker_score: number | null;
   }[];
   nli_results: { evidence_id: string; label: string; probabilities: Record<string, number>;
     model_name: string; model_revision: string }[];

@@ -1,5 +1,6 @@
 
 import re
+from statistics import median
 from pathlib import Path
 from uuid import UUID
 
@@ -17,6 +18,8 @@ PARSER_VERSION = f"pdfplumber-{pdfplumber.__version__}/eg-pdf-1"
 
 MIN_CHARS_PER_PAGE = 40
 MAX_EMPTY_FRACTION = 0.3
+PARAGRAPH_GAP_LINE_HEIGHT_RATIO = 0.75
+MIN_PARAGRAPH_GAP_POINTS = 3.0
 
 CAPTION_RE = re.compile(r"^(Table|Tab\.)\s*\d+", re.IGNORECASE)
 
@@ -86,6 +89,59 @@ def split_paragraphs(text: str) -> list[tuple[int, int]]:
         spans.append((start, len(text)))
 
     return spans
+
+
+def _page_paragraphs(page, body_page, body_text: str) -> list[tuple[int, int, str]]:
+    """Group visually adjacent PDF lines and retain offsets into normalized page text."""
+    extract_lines = getattr(body_page, "extract_text_lines", None)
+    if not callable(extract_lines):
+        return [
+            (start, end, " ".join(body_text[start:end].split()))
+            for start, end in split_paragraphs(body_text)
+            if body_text[start:end].strip()
+        ]
+
+    lines = [
+        line
+        for line in extract_lines()
+        if str(line.get("text", "")).strip()
+    ]
+    if not lines:
+        return []
+
+    heights = [max(0.0, float(line["bottom"]) - float(line["top"])) for line in lines]
+    paragraph_gap = max(
+        MIN_PARAGRAPH_GAP_POINTS,
+        median(heights) * PARAGRAPH_GAP_LINE_HEIGHT_RATIO,
+    )
+    grouped: list[list[str]] = []
+    current: list[str] = []
+    previous_bottom: float | None = None
+    for line in lines:
+        top = float(line["top"])
+        if (
+            current
+            and previous_bottom is not None
+            and top - previous_bottom > paragraph_gap
+        ):
+            grouped.append(current)
+            current = []
+        current.append(str(line["text"]).strip())
+        previous_bottom = float(line["bottom"])
+    if current:
+        grouped.append(current)
+
+    output: list[tuple[int, int, str]] = []
+    normalized_position = 0
+    for group in grouped:
+        paragraph = " ".join(" ".join(group).split())
+        if not paragraph:
+            continue
+        start = normalized_position
+        end = start + len(paragraph)
+        output.append((start, end, paragraph))
+        normalized_position = end + 2
+    return output
 
 
 def _table_quality(rows) -> list[str]:
@@ -282,19 +338,17 @@ def ingest_pdf(
                 body_page = page.filter(_not_within(bboxes))
                 body_text = body_page.extract_text() or ""
             else:
+                body_page = page
                 body_text = raw_text
 
-            # Extract paragraphs.
-            for paragraph_index, (start, end) in enumerate(
-                split_paragraphs(body_text)
-            ):
-
-                paragraph = " ".join(
-                    body_text[start:end].split()
-                )
-
-                if not paragraph:
+            # Extract visually separated paragraphs, not every wrapped PDF line.
+            paragraphs = _page_paragraphs(page, body_page, body_text)
+            seen_paragraphs: set[str] = set()
+            for paragraph_index, (start, end, paragraph) in enumerate(paragraphs):
+                normalized_paragraph = paragraph.casefold()
+                if not paragraph or normalized_paragraph in seen_paragraphs:
                     continue
+                seen_paragraphs.add(normalized_paragraph)
 
                 anchor = SourceAnchor(
                     anchor_id=para_anchor_id(

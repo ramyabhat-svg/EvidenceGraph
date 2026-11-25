@@ -45,6 +45,10 @@ def test_initial_migration_upgrades_and_downgrades(tmp_path: Path, monkeypatch) 
             "embedding_model_id",
             "embedding_model_revision",
         } <= evidence_columns
+        run_columns = {
+            column["name"] for column in inspect(engine).get_columns("analysis_runs")
+        }
+        assert "completed_at" in run_columns
         document_indexes = {index["name"] for index in database_inspector.get_indexes("documents")}
         assert "uq_documents_parent_csv" in document_indexes
         engine.dispose()

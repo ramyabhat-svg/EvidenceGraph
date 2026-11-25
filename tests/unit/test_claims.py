@@ -208,7 +208,7 @@ def test_claim_has_extractor_version():
 
     claims = extract_claims([chunk], FILE_HASH)
 
-    assert claims[0].extraction_method == "rules-1"
+    assert claims[0].extraction_method == "rules-2"
 
 
 def test_claim_confidence_is_between_zero_and_one():

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Generator
+from datetime import datetime, timezone
 from decimal import Decimal
 from io import BytesIO
 from pathlib import Path
@@ -40,7 +41,7 @@ from domain.schemas import (
 from eg_common.errors import AppError
 from eg_common.ids import derive_uuid
 from eg_common.settings import Settings
-from persistence.models import Base, DocumentRow
+from persistence.models import AnalysisRunRow, Base, DocumentRow
 from persistence.repositories import PersistenceRepository
 from worker.orchestration.decision_policy import POLICY_VERSION
 from worker.orchestration.run_identity import analysis_run_id
@@ -316,6 +317,9 @@ def test_verdict_readback_includes_scores_numeric_checks_and_anchor_provenance(
             model_versions={"nli": "mock"},
             policy_version=POLICY_VERSION,
         )
+        run_row = session.get(AnalysisRunRow, run_id)
+        assert run_row is not None
+        run_row.completed_at = datetime(2026, 11, 25, 12, 0, tzinfo=timezone.utc)
         repository.store_numeric_verifications(
             run_id=run_id,
             claim_id=claim_id,
@@ -359,6 +363,16 @@ def test_verdict_readback_includes_scores_numeric_checks_and_anchor_provenance(
             ),
             policy_version=POLICY_VERSION,
             evidence_persistence_ids=[evidence_id],
+            policy_inputs={
+                "thresholds": {"tau_ext": None, "tau_ret": None, "tau_e": None, "tau_c": None},
+                "retrieval": [{
+                    "evidence_id": str(evidence_id),
+                    "rank": 1,
+                    "retrieval_rank": 2,
+                    "retrieval_score": 0.04,
+                    "reranker_score": 0.87,
+                }],
+            },
         )
 
     response = _handler(router, "get_analysis_run_verdicts")(run_id)
@@ -404,9 +418,16 @@ def test_verdict_readback_includes_scores_numeric_checks_and_anchor_provenance(
         run_id
     )
     assert client.get(f"{prefix}/runs/{run_id}").json()["model_versions"] == {"nli": "mock"}
+    run_detail = client.get(f"{prefix}/runs/{run_id}").json()
+    assert run_detail["completed_at"] == "2026-11-25T12:00:00Z"
     report = client.get(f"{prefix}/runs/{run_id}/report").json()
     assert report["claims"][0]["review_history"][0]["review_id"] == event.json()["review_id"]
     assert report["claims"][0]["verdict"]["verdict_status"] == "Needs Review"
+    trace = report["claims"][0]
+    assert trace["verdict"]["policy_inputs"]["thresholds"]["tau_ext"] is None
+    assert trace["retrieved_evidence"][0]["retrieval_rank"] == 2
+    assert trace["retrieved_evidence"][0]["relevance_rank"] == 1
+    assert trace["retrieved_evidence"][0]["retrieval_score"] == 0.04
     rendered = client.get(f"{prefix}/runs/{run_id}/report?format=html").text
     assert "&lt;script&gt;review&lt;/script&gt;" in rendered
     assert client.get(f"{prefix}/analysis-runs/{run_id}/verdicts").json()["verdicts"][0][

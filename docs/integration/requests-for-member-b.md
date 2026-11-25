@@ -20,3 +20,18 @@ These integration requests keep Member A's changes inside A-owned directories.
 6. **Align the numeric verification parameter name.** The handoff names the optional argument
    `cfg`; the implementation names it `config`. Please align the handoff or implementation in a
    future B-owned change. A will pass the value positionally for compatibility.
+7. **Improve claim segmentation and semantic slot extraction.** The current rule extractor emits
+   one numeric claim per sentence, includes some headings/boilerplate, assigns confidence from a
+   fixed feature sum, and can miss metric/entity/denominator/comparison context. Please add
+   deterministic regressions for independent assertions, headings, boilerplate, and calibrated
+   confidence; preserve source offsets and page anchors.
+8. **Complete numeric comparison semantics.** The verifier distinguishes percent rates from
+   percentage-point units, but it does not derive a comparison delta from two separately reported
+   rates. Please preserve whether the claim states an absolute or relative difference, require
+   compatible comparison basis and denominator, and return incomparable when the complete
+   contextual facts are unavailable. Add tests for numerator/denominator context and controlled
+   80%/90% examples without fixture-specific production logic.
+9. **Expose numeric evidence attribution to the integration layer.** `SlotVerification` retains
+   source chunk IDs, but the aggregate can be mismatch even when retrieved candidates include
+   conflicting or weakly related passages. Please ensure mixed match/mismatch evidence abstains
+   and expose sufficient per-evidence context to tie the outcome to a relevant source.

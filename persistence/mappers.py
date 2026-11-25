@@ -167,7 +167,7 @@ def slot_verification_values(
         "validator": None,
         "slot_index": result.slot_index,
         "assumptions": [],
-        "trace": [],
+        "trace": list(result.trace or []),
     }
 
 
@@ -242,6 +242,7 @@ def slot_verification_from_rows(
         overall=CheckResult(result_row.result),
         reason=result_row.reason or "",
         per_evidence=numeric_checks,
+        trace=list(result_row.trace),
     )
 
 

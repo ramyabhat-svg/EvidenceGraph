@@ -178,13 +178,14 @@ def _trace(db: Session, claim: ClaimRow, verdict: VerdictRow, run: AnalysisRunRo
     nli = db.scalars(
         select(NLIResultRow).where(NLIResultRow.claim_id == claim.id, NLIResultRow.run_id == run.id)
     ).all()
-    scores = dict(
-        db.execute(
+    scores: dict[UUID, float] = {
+        evidence_id: score
+        for evidence_id, score in db.execute(
             select(RerankerResultRow.evidence_chunk_id, RerankerResultRow.score).where(
                 RerankerResultRow.claim_id == claim.id, RerankerResultRow.run_id == run.id
             )
-        ).all()
-    )
+        )
+    }
     checks = db.execute(
         select(NumericCheckRow, VerificationResultRow.reason)
         .join(VerificationResultRow)
@@ -198,6 +199,12 @@ def _trace(db: Session, claim: ClaimRow, verdict: VerdictRow, run: AnalysisRunRo
             )
         )
     ).union(scores, (n.evidence_chunk_id for n in nli), (c.evidence_chunk_id for c, _ in checks))
+    policy_inputs = verdict.policy_inputs or {}
+    retrieval = {
+        str(item["evidence_id"]): item
+        for item in policy_inputs.get("retrieval", [])
+        if isinstance(item, dict) and "evidence_id" in item
+    }
     evidence = []
     for chunk, location in db.execute(
         select(EvidenceChunkRow, SourceLocationRow)
@@ -211,12 +218,26 @@ def _trace(db: Session, claim: ClaimRow, verdict: VerdictRow, run: AnalysisRunRo
                 document_id=chunk.document_id,
                 evidence_text=chunk.text,
                 source_anchor=_anchor(location),
-                retrieval_rank=None,
-                bm25_score=None,
-                dense_score=None,
+                retrieval_rank=(
+                    retrieval.get(str(chunk.id), {}).get("retrieval_rank")
+                ),
+                relevance_rank=retrieval.get(str(chunk.id), {}).get("rank"),
+                retrieval_score=retrieval.get(str(chunk.id), {}).get("retrieval_score"),
+                bm25_score=retrieval.get(str(chunk.id), {}).get("bm25_score"),
+                dense_score=retrieval.get(str(chunk.id), {}).get("dense_score"),
+                bm25_rank=retrieval.get(str(chunk.id), {}).get("bm25_rank"),
+                dense_rank=retrieval.get(str(chunk.id), {}).get("dense_rank"),
+                rrf_score=retrieval.get(str(chunk.id), {}).get("rrf_score"),
                 reranker_score=scores.get(chunk.id),
             )
         )
+    evidence.sort(
+        key=lambda item: (
+            item["relevance_rank"] is None,
+            item["relevance_rank"] if item["relevance_rank"] is not None else 0,
+            str(item["evidence_id"]),
+        )
+    )
     return dict(
         _summary(db, claim, verdict),
         document_id=claim.document_id,
@@ -253,8 +274,10 @@ def _trace(db: Session, claim: ClaimRow, verdict: VerdictRow, run: AnalysisRunRo
             abstention_reason=verdict.reason if verdict.status == "Needs Review" else None,
             reason=verdict.reason,
             explanation=verdict.explanation,
+            confidence=verdict.confidence,
+            policy_inputs=policy_inputs,
             run_id=run.id,
-            run_timestamp=_utc(run.created_at),
+            run_timestamp=_utc(run.completed_at or run.created_at),
         ),
     )
 
@@ -269,7 +292,7 @@ def _run(db: Session, run: AnalysisRunRow) -> Payload:
         run_id=run.id,
         document_id=doc.id,
         started_at=_utc(run.created_at),
-        completed_at=None,
+        completed_at=_utc(run.completed_at),
         status="complete",
         claim_count=count,
         error_count=0,

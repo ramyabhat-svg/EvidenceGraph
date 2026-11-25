@@ -39,6 +39,11 @@ class RankedEvidence:
     chunk: EvidenceChunk
     score: float
     rank: int
+    bm25_score: float | None = None
+    dense_score: float | None = None
+    rrf_score: float | None = None
+    bm25_rank: int | None = None
+    dense_rank: int | None = None
 
 
 def _tokens(text: str) -> list[str]:
@@ -103,7 +108,7 @@ def bm25_retrieve(
 
     scored.sort(key=lambda item: (-item[2], item[0]))
     return [
-        RankedEvidence(chunk=chunk, score=score, rank=rank)
+        RankedEvidence(chunk=chunk, score=score, rank=rank, bm25_score=score, bm25_rank=rank)
         for rank, (_index, chunk, score) in enumerate(scored[:top_k], start=1)
     ]
 
@@ -122,6 +127,7 @@ def reciprocal_rank_fusion(
 
     chunks: dict[tuple[UUID, UUID], EvidenceChunk] = {}
     fused_scores: dict[tuple[UUID, UUID], float] = {}
+    components: dict[tuple[UUID, UUID], dict[str, float | int | None]] = {}
     for ranking in rankings:
         seen_in_ranking: set[tuple[UUID, UUID]] = set()
         for item in ranking:
@@ -134,6 +140,17 @@ def reciprocal_rank_fusion(
                     "duplicate evidence identity has conflicting content or provenance"
                 )
             chunks[key] = item.chunk
+            component = components.setdefault(
+                key,
+                {"bm25_score": None, "dense_score": None, "bm25_rank": None, "dense_rank": None},
+            )
+            for score_name, rank_name in (
+                ("bm25_score", "bm25_rank"), ("dense_score", "dense_rank")
+            ):
+                score = getattr(item, score_name)
+                if score is not None:
+                    component[score_name] = score
+                    component[rank_name] = item.rank
             if key in seen_in_ranking:
                 continue
             seen_in_ranking.add(key)
@@ -148,7 +165,10 @@ def reciprocal_rank_fusion(
         ),
     )[:top_k]
     return [
-        RankedEvidence(chunk=chunks[key], score=fused_scores[key], rank=rank)
+        RankedEvidence(
+            chunk=chunks[key], score=fused_scores[key], rank=rank,
+            rrf_score=fused_scores[key], **components[key],
+        )
         for rank, key in enumerate(ordered, start=1)
     ]
 
@@ -283,6 +303,8 @@ def dense_retrieve_project_evidence(
             chunk=evidence_chunk_from_row(row, source_anchor_from_row(location)),
             score=1.0 - float(cosine_distance),
             rank=rank,
+            dense_score=1.0 - float(cosine_distance),
+            dense_rank=rank,
         )
         for rank, (row, location, cosine_distance) in enumerate(rows, start=1)
     ]
