@@ -1,0 +1,1702 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "EvidenceGraph API",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "summary": "Health",
+        "description": "Report API and database readiness using the frontend health contract.",
+        "operationId": "health_api_v1_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/documents": {
+      "post": {
+        "summary": "Upload Document",
+        "description": "Store one PDF or companion CSV and enqueue it for asynchronous processing.",
+        "operationId": "upload_document_api_v1_projects__project_id__documents_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_document_api_v1_projects__project_id__documents_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentIntakeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid upload request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Upload conflicts with project state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Upload exceeds configured size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Persistent storage unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}": {
+      "get": {
+        "summary": "Get Document Status",
+        "description": "Return the current queue or processing state and any persisted run IDs.",
+        "operationId": "get_document_status_api_v1_documents__document_id__get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentStatusResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Document not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/analysis-runs/{run_id}/verdicts": {
+      "get": {
+        "summary": "Get Analysis Run Verdicts",
+        "description": "Return verdicts, scores, numeric checks, explanations, and source provenance.",
+        "operationId": "get_analysis_run_verdicts_api_v1_analysis_runs__run_id__verdicts_get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisRunVerdictsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Analysis run not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspace/projects": {
+      "get": {
+        "summary": "Projects",
+        "description": "List projects in creation order.",
+        "operationId": "projects_api_v1_workspace_projects_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Projects Api V1 Workspace Projects Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create Project",
+        "description": "Create a named engineering project.",
+        "operationId": "create_project_api_v1_workspace_projects_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Create Project Api V1 Workspace Projects Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspace/projects/{project_id}": {
+      "get": {
+        "summary": "Project",
+        "description": "Read a single project.",
+        "operationId": "project_api_v1_workspace_projects__project_id__get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Project Api V1 Workspace Projects  Project Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspace/projects/{project_id}/documents": {
+      "get": {
+        "summary": "Documents",
+        "description": "List papers and combined PDF/CSV worker status.",
+        "operationId": "documents_api_v1_workspace_projects__project_id__documents_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Documents Api V1 Workspace Projects  Project Id  Documents Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Upload",
+        "description": "Validate and queue the PDF and optional companion in one transaction.",
+        "operationId": "upload_api_v1_workspace_projects__project_id__documents_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_api_v1_workspace_projects__project_id__documents_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Upload Api V1 Workspace Projects  Project Id  Documents Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspace/documents/{document_id}": {
+      "get": {
+        "summary": "Document",
+        "description": "Read a paper and its processing state.",
+        "operationId": "document_api_v1_workspace_documents__document_id__get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Document Api V1 Workspace Documents  Document Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspace/documents/{document_id}/claims": {
+      "get": {
+        "summary": "Claims",
+        "description": "Page through claims from the latest run with optional verdict filtering.",
+        "operationId": "claims_api_v1_workspace_documents__document_id__claims_get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/VerdictStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Page Size"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Claims Api V1 Workspace Documents  Document Id  Claims Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspace/claims/{claim_id}": {
+      "get": {
+        "summary": "Claim Detail",
+        "description": "Return the native trace and human review history.",
+        "operationId": "claim_detail_api_v1_workspace_claims__claim_id__get",
+        "parameters": [
+          {
+            "name": "claim_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Claim Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Claim Detail Api V1 Workspace Claims  Claim Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspace/claims/{claim_id}/reviews": {
+      "get": {
+        "summary": "Reviews",
+        "description": "Read chronological review history for a claim.",
+        "operationId": "reviews_api_v1_workspace_claims__claim_id__reviews_get",
+        "parameters": [
+          {
+            "name": "claim_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Claim Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Reviews Api V1 Workspace Claims  Claim Id  Reviews Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Review",
+        "description": "Record a human decision against the current system verdict.",
+        "operationId": "review_api_v1_workspace_claims__claim_id__reviews_post",
+        "parameters": [
+          {
+            "name": "claim_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Claim Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Review Api V1 Workspace Claims  Claim Id  Reviews Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspace/projects/{project_id}/runs": {
+      "get": {
+        "summary": "Runs",
+        "description": "List stored analysis runs for project papers.",
+        "operationId": "runs_api_v1_workspace_projects__project_id__runs_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Page Size"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Runs Api V1 Workspace Projects  Project Id  Runs Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspace/runs/{run_id}": {
+      "get": {
+        "summary": "Run Detail",
+        "description": "Read the engineering run configuration and file hashes.",
+        "operationId": "run_detail_api_v1_workspace_runs__run_id__get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Run Detail Api V1 Workspace Runs  Run Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspace/runs/{run_id}/report": {
+      "get": {
+        "summary": "Report",
+        "description": "Export the selected run and its run-specific review events.",
+        "operationId": "report_api_v1_workspace_runs__run_id__report_get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "json",
+                "html"
+              ],
+              "type": "string",
+              "default": "json",
+              "title": "Format"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AnalysisRunVerdictsResponse": {
+        "properties": {
+          "analysis_run_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Analysis Run Id"
+          },
+          "document_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Document Id"
+          },
+          "verdicts": {
+            "items": {
+              "$ref": "#/components/schemas/ClaimVerdictResponse"
+            },
+            "type": "array",
+            "title": "Verdicts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "analysis_run_id",
+          "document_id",
+          "verdicts"
+        ],
+        "title": "AnalysisRunVerdictsResponse",
+        "description": "All verdict outputs persisted for one analysis run."
+      },
+      "Body_upload_api_v1_workspace_projects__project_id__documents_post": {
+        "properties": {
+          "pdf_file": {
+            "type": "string",
+            "format": "binary",
+            "title": "Pdf File"
+          },
+          "csv_file": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "binary"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Csv File"
+          },
+          "document_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 512
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pdf_file"
+        ],
+        "title": "Body_upload_api_v1_workspace_projects__project_id__documents_post"
+      },
+      "Body_upload_document_api_v1_projects__project_id__documents_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "title": "File"
+          },
+          "parent_document_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Document Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_document_api_v1_projects__project_id__documents_post"
+      },
+      "ClaimVerdictResponse": {
+        "properties": {
+          "claim_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Claim Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "explanation": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Explanation"
+          },
+          "policy_version": {
+            "type": "string",
+            "title": "Policy Version"
+          },
+          "numeric_verifications": {
+            "items": {
+              "$ref": "#/components/schemas/NumericVerificationResponse"
+            },
+            "type": "array",
+            "title": "Numeric Verifications"
+          },
+          "nli_results": {
+            "items": {
+              "$ref": "#/components/schemas/NLIResultResponse"
+            },
+            "type": "array",
+            "title": "Nli Results"
+          },
+          "reranker_results": {
+            "items": {
+              "$ref": "#/components/schemas/RerankerResultResponse"
+            },
+            "type": "array",
+            "title": "Reranker Results"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceProvenanceResponse"
+            },
+            "type": "array",
+            "title": "Evidence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "claim_id",
+          "status",
+          "confidence",
+          "reason",
+          "explanation",
+          "policy_version",
+          "numeric_verifications",
+          "nli_results",
+          "reranker_results",
+          "evidence"
+        ],
+        "title": "ClaimVerdictResponse",
+        "description": "Final policy decision and all persisted support used to produce it."
+      },
+      "DocumentFileStatusResponse": {
+        "properties": {
+          "file_document_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "File Document Id"
+          },
+          "file_type": {
+            "type": "string",
+            "enum": [
+              "pdf",
+              "csv"
+            ],
+            "title": "File Type"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "processing",
+              "complete",
+              "error"
+            ],
+            "title": "Status"
+          },
+          "processing_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Processing Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file_document_id",
+          "file_type",
+          "status",
+          "processing_error"
+        ],
+        "title": "DocumentFileStatusResponse",
+        "description": "Queue or processing state for one physical PDF or CSV file row."
+      },
+      "DocumentIntakeResponse": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Document Id"
+          },
+          "file_document_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "File Document Id"
+          },
+          "project_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Project Id"
+          },
+          "file_type": {
+            "type": "string",
+            "enum": [
+              "pdf",
+              "csv"
+            ],
+            "title": "File Type"
+          },
+          "status": {
+            "type": "string",
+            "const": "queued",
+            "title": "Status"
+          },
+          "parent_document_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Document Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "file_document_id",
+          "project_id",
+          "file_type",
+          "status",
+          "parent_document_id"
+        ],
+        "title": "DocumentIntakeResponse",
+        "description": "Acknowledgement returned after a document is stored and queued."
+      },
+      "DocumentStatusResponse": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Document Id"
+          },
+          "project_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Project Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "processing",
+              "complete",
+              "error"
+            ],
+            "title": "Status"
+          },
+          "processing_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Processing Error"
+          },
+          "analysis_run_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "title": "Analysis Run Ids"
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentFileStatusResponse"
+            },
+            "type": "array",
+            "title": "Files"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "project_id",
+          "status",
+          "processing_error",
+          "analysis_run_ids",
+          "files"
+        ],
+        "title": "DocumentStatusResponse",
+        "description": "Current worker processing state for one stored document."
+      },
+      "ErrorResponse": {
+        "properties": {
+          "error": {
+            "type": "string",
+            "title": "Error"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field"
+          }
+        },
+        "type": "object",
+        "required": [
+          "error",
+          "message",
+          "field"
+        ],
+        "title": "ErrorResponse",
+        "description": "Safe error body used by all non-validation API failures."
+      },
+      "EvidenceProvenanceResponse": {
+        "properties": {
+          "evidence_chunk_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Evidence Chunk Id"
+          },
+          "source_chunk_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Source Chunk Id"
+          },
+          "document_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Document Id"
+          },
+          "anchor_id": {
+            "type": "string",
+            "title": "Anchor Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page"
+          },
+          "table_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Table Index"
+          },
+          "row": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Row"
+          },
+          "col": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Col"
+          },
+          "char_start": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Char Start"
+          },
+          "char_end": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Char End"
+          },
+          "bbox": {
+            "anyOf": [
+              {
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "type": "array",
+                "maxItems": 4,
+                "minItems": 4
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bbox"
+          },
+          "low_quality": {
+            "type": "boolean",
+            "title": "Low Quality"
+          },
+          "low_quality_reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Low Quality Reasons"
+          }
+        },
+        "type": "object",
+        "required": [
+          "evidence_chunk_id",
+          "source_chunk_id",
+          "document_id",
+          "anchor_id",
+          "kind",
+          "page",
+          "table_index",
+          "row",
+          "col",
+          "char_start",
+          "char_end",
+          "bbox",
+          "low_quality",
+          "low_quality_reasons"
+        ],
+        "title": "EvidenceProvenanceResponse",
+        "description": "Persisted source identity and location for evidence used by a verdict."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "NLIResultResponse": {
+        "properties": {
+          "evidence_chunk_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Evidence Chunk Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "contradiction_score": {
+            "type": "number",
+            "title": "Contradiction Score"
+          },
+          "entailment_score": {
+            "type": "number",
+            "title": "Entailment Score"
+          },
+          "neutral_score": {
+            "type": "number",
+            "title": "Neutral Score"
+          }
+        },
+        "type": "object",
+        "required": [
+          "evidence_chunk_id",
+          "label",
+          "contradiction_score",
+          "entailment_score",
+          "neutral_score"
+        ],
+        "title": "NLIResultResponse",
+        "description": "NLI class distribution for one claim-evidence pair."
+      },
+      "NumericEvidenceCheckResponse": {
+        "properties": {
+          "evidence_chunk_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Evidence Chunk Id"
+          },
+          "result": {
+            "type": "string",
+            "title": "Result"
+          },
+          "claim_slots": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Claim Slots"
+          },
+          "evidence_slots": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Evidence Slots"
+          },
+          "tolerance": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tolerance"
+          },
+          "difference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Difference"
+          },
+          "failed_slots": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Failed Slots"
+          },
+          "trace": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Trace"
+          },
+          "validator_version": {
+            "type": "string",
+            "title": "Validator Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "evidence_chunk_id",
+          "result",
+          "claim_slots",
+          "evidence_slots",
+          "tolerance",
+          "difference",
+          "failed_slots",
+          "trace",
+          "validator_version"
+        ],
+        "title": "NumericEvidenceCheckResponse",
+        "description": "One numeric comparison with exact decimal values represented as strings."
+      },
+      "NumericVerificationResponse": {
+        "properties": {
+          "slot_index": {
+            "type": "integer",
+            "title": "Slot Index"
+          },
+          "result": {
+            "type": "string",
+            "title": "Result"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "validator": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Validator"
+          },
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/NumericEvidenceCheckResponse"
+            },
+            "type": "array",
+            "title": "Checks"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slot_index",
+          "result",
+          "reason",
+          "validator",
+          "checks"
+        ],
+        "title": "NumericVerificationResponse",
+        "description": "Persisted result for one claim numeric slot."
+      },
+      "ProjectInput": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "ProjectInput",
+        "description": "User-supplied project metadata."
+      },
+      "RerankerResultResponse": {
+        "properties": {
+          "evidence_chunk_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Evidence Chunk Id"
+          },
+          "score": {
+            "type": "number",
+            "title": "Score"
+          }
+        },
+        "type": "object",
+        "required": [
+          "evidence_chunk_id",
+          "score"
+        ],
+        "title": "RerankerResultResponse",
+        "description": "Locally computed reranker relevance score for one evidence chunk."
+      },
+      "ReviewInput": {
+        "properties": {
+          "reviewer_id": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Reviewer Id"
+          },
+          "override_verdict": {
+            "$ref": "#/components/schemas/VerdictStatus"
+          },
+          "note": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Note"
+          },
+          "flag_for_rerun": {
+            "type": "boolean",
+            "title": "Flag For Rerun",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "reviewer_id",
+          "override_verdict",
+          "note"
+        ],
+        "title": "ReviewInput",
+        "description": "A human decision and its rationale."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "VerdictStatus": {
+        "type": "string",
+        "enum": [
+          "Supported",
+          "Partially Supported",
+          "Contradicted",
+          "Unsupported",
+          "Needs Review"
+        ],
+        "title": "VerdictStatus",
+        "description": "Claim-level statuses defined by the EvidenceGraph framework."
+      }
+    }
+  }
+}

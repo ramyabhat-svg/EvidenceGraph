@@ -1,0 +1,17 @@
+{
+  "experiment_name": "ablation_no_table_context",
+  "retrieval": {
+    "use_bm25": true,
+    "use_dense": true,
+    "use_reranker": true,
+    "use_table_context": false,
+    "bm25_k": 10
+  },
+  "verification": {
+    "use_nli": true,
+    "use_numeric": true
+  },
+  "policy": {
+    "disable_abstention": false
+  }
+}

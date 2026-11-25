@@ -1,0 +1,105 @@
+name: evidencegraph_integrated
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: evidencegraph
+      POSTGRES_USER: evidencegraph
+      POSTGRES_PASSWORD: evidencegraph
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U evidencegraph -d evidencegraph"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    image: evidencegraph-integrated-backend:local
+    build:
+      context: .
+      dockerfile: infra/docker/api.Dockerfile
+    environment:
+      API_PORT: ${API_PORT:-8000}
+      DATABASE_URL: postgresql+psycopg://evidencegraph:evidencegraph@postgres:5432/evidencegraph
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+      STUB_MODE: ${STUB_MODE:-false}
+      EVIDENCEGRAPH_ENV: ${EVIDENCEGRAPH_ENV:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      STORAGE_ROOT: /app/storage
+      MAX_PDF_MB: ${MAX_PDF_MB:-50}
+      MAX_CSV_MB: ${MAX_CSV_MB:-5}
+      MAX_PDF_PAGES: ${MAX_PDF_PAGES:-200}
+      JOB_MAX_ATTEMPTS: ${JOB_MAX_ATTEMPTS:-3}
+      JOB_BACKOFF_BASE_SECONDS: ${JOB_BACKOFF_BASE_SECONDS:-30}
+      JOB_LOCK_TIMEOUT_SECONDS: ${JOB_LOCK_TIMEOUT_SECONDS:-900}
+      WORKER_POLL_SECONDS: ${WORKER_POLL_SECONDS:-2}
+    command: ["sh", "-c", "alembic upgrade head && exec uvicorn apps.api.main:app --host 0.0.0.0 --port $$API_PORT"]
+    ports:
+      - "127.0.0.1:${API_PORT:-8000}:${API_PORT:-8000}"
+    volumes:
+      - uploaded_files:/app/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.environ.get('API_PORT', '8000') + '/api/v1/health', timeout=2)"
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  worker:
+    image: evidencegraph-integrated-backend:local
+    command: ["python", "-m", "worker.main"]
+    pull_policy: never
+    environment:
+      DATABASE_URL: postgresql+psycopg://evidencegraph:evidencegraph@postgres:5432/evidencegraph
+      STUB_MODE: ${STUB_MODE:-false}
+      EVIDENCEGRAPH_ENV: ${EVIDENCEGRAPH_ENV:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      STORAGE_ROOT: /app/storage
+      MAX_PDF_MB: ${MAX_PDF_MB:-50}
+      MAX_CSV_MB: ${MAX_CSV_MB:-5}
+      MAX_PDF_PAGES: ${MAX_PDF_PAGES:-200}
+      JOB_MAX_ATTEMPTS: ${JOB_MAX_ATTEMPTS:-3}
+      JOB_BACKOFF_BASE_SECONDS: ${JOB_BACKOFF_BASE_SECONDS:-30}
+      JOB_LOCK_TIMEOUT_SECONDS: ${JOB_LOCK_TIMEOUT_SECONDS:-900}
+      WORKER_POLL_SECONDS: ${WORKER_POLL_SECONDS:-2}
+      RETRIEVAL_TOP_K: ${RETRIEVAL_TOP_K:-20}
+      RETRIEVAL_BM25_K1: ${RETRIEVAL_BM25_K1:-1.5}
+      RETRIEVAL_BM25_B: ${RETRIEVAL_BM25_B:-0.75}
+      RETRIEVAL_RRF_K: ${RETRIEVAL_RRF_K:-60}
+      EMBEDDING_BATCH_SIZE: ${EMBEDDING_BATCH_SIZE:-32}
+      NLI_BATCH_SIZE: ${NLI_BATCH_SIZE:-16}
+      RERANKER_BATCH_SIZE: ${RERANKER_BATCH_SIZE:-16}
+      POLICY_TAU_EXT:
+      POLICY_TAU_RET:
+      POLICY_TAU_E:
+      POLICY_TAU_C:
+    volumes:
+      - uploaded_files:/app/storage
+    depends_on:
+      api:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: infra/docker/web.Dockerfile
+    environment:
+      API_PORT: ${API_PORT:-8000}
+    ports:
+      - "127.0.0.1:5173:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  uploaded_files:

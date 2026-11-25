@@ -1,0 +1,24 @@
+[
+  {
+    "paper_id": "paper-001",
+    "sha256": "a5eb891eb0fd5ce15023fdb9e8bb7968f88cc0eb7f5cae1d83233d8883807d23",
+    "chunks": 189,
+    "anchor_types": {
+      "paragraph": 147,
+      "table_row": 42
+    },
+    "claims": 6,
+    "numeric_claims": 6
+  },
+  {
+    "paper_id": "paper-002",
+    "sha256": "cade2185f48039d0f6b2f0d6d9a411767479aa0cd5f509b614d5bfcfacd31ffe",
+    "chunks": 318,
+    "anchor_types": {
+      "paragraph": 141,
+      "table_row": 177
+    },
+    "claims": 7,
+    "numeric_claims": 7
+  }
+]
